@@ -1,8 +1,8 @@
-import { db } from "./firebaseConfig";
-import { collection, doc, setDoc } from "firebase/firestore";
-import { COLLECTIONS, SUBCOLLECTIONS } from "./firebaseCollections";
+import { db } from "./firebaseAdmin.js";
+// import { collection, doc, setDoc } from "firebase/firestore.js";
+import { COLLECTIONS, SUBCOLLECTIONS } from "./firebaseCollections.js";
 
-// Lista centrelor inițiale
+// Lista centrelor initiale
 const Centers = [
   {
     center_id: "1",
@@ -88,10 +88,11 @@ const Centers = [
 
 export const seedCenters = async () => {
   for (const center of Centers) {
-    const centerRef = doc(collection(db, COLLECTIONS.CENTERS), center.center_id);
+    const centerRef = db.collection(COLLECTIONS.CENTERS).doc(center.center_id);
 
-    // Creăm documentul centru
-    await setDoc(centerRef, {
+    // Cream documentul centru
+    // Setează documentul centru
+    await centerRef.set({
       center_id: center.center_id,
       name: center.name,
       address: center.address,
@@ -102,10 +103,9 @@ export const seedCenters = async () => {
       program: center.program
     });
 
-    // Creăm subcolecția blood_stock
+    // Creează subcolecția blood_stock
     for (const s of center.stock) {
-      const stockRef = doc(collection(centerRef, SUBCOLLECTIONS.BLOOD_STOCK), s.stock_id);
-      await setDoc(stockRef, s);
+      await centerRef.collection(SUBCOLLECTIONS.BLOOD_STOCK).doc(s.stock_id).set(s);
     }
   }
 

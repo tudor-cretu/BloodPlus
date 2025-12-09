@@ -1,6 +1,6 @@
-import { db } from "./firebaseAdmin.js";
-// import { collection, doc, setDoc } from "firebase/firestore.js";
-import { COLLECTIONS, SUBCOLLECTIONS } from "./firebaseCollections.js";
+import { db } from "./firebaseConfig"; // Importăm db-ul de client, NU cel de admin
+import { doc, setDoc } from "firebase/firestore";
+import { COLLECTIONS, SUBCOLLECTIONS } from "./firebaseCollections";
 
 // Lista centrelor initiale
 const Centers = [
@@ -87,27 +87,29 @@ const Centers = [
 ];
 
 export const seedCenters = async () => {
-  for (const center of Centers) {
-    const centerRef = db.collection(COLLECTIONS.CENTERS).doc(center.center_id);
+  try {
+    console.log("Începe popularea...");
+    for (const center of Centers) {
+      // 1. Referința către documentul centrului (folosind sintaxa modulară v9)
+      const centerRef = doc(db, COLLECTIONS.CENTERS, center.center_id);
 
-    // Cream documentul centru
-    // Setează documentul centru
-    await centerRef.set({
-      center_id: center.center_id,
-      name: center.name,
-      address: center.address,
-      latitude: center.latitude,
-      longitude: center.longitude,
-      contact_phone: center.contact_phone,
-      contact_email: center.contact_email,
-      program: center.program
-    });
+      // Separăm datele centrului de stoc
+      const { stock, ...centerData } = center;
 
-    // Creează subcolecția blood_stock
-    for (const s of center.stock) {
-      await centerRef.collection(SUBCOLLECTIONS.BLOOD_STOCK).doc(s.stock_id).set(s);
+      // 2. Salvăm datele centrului
+      await setDoc(centerRef, centerData);
+
+      // 3. Salvăm subcolecția blood_stock
+      if (stock) {
+        for (const s of stock) {
+          const stockRef = doc(db, COLLECTIONS.CENTERS, center.center_id, SUBCOLLECTIONS.BLOOD_STOCK, s.stock_id);
+          await setDoc(stockRef, s);
+        }
+      }
     }
+    console.log("✅ Centrele au fost încărcate cu succes în Firestore!");
+    alert("Datele au fost populate! Verifică Firebase Console.");
+  } catch (e) {
+    console.error("❌ Eroare la populare:", e);
   }
-
-  console.log("Centerele au fost încărcate în Firestore!");
 };

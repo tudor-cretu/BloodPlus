@@ -23,6 +23,7 @@ import { centersCollection } from "./firebase/firebaseService";
 const MapComponent = () => {
   const mapDiv = useRef(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const [searchLocation, setSearchLocation] = useState(null);
 
   // Stocăm centrele într-un ref pentru a fi accesibile instantaneu în funcțiile hărții
   const centersDataRef = useRef([]);
@@ -57,6 +58,10 @@ const MapComponent = () => {
         setIsMapLoaded(true);
         console.log("✅ Harta inițializată corect.");
 
+        // Store references for the button to access
+        mapDiv.current.__mapView = myMapView;
+        mapDiv.current.__routeLayer = routeLayer;
+
         // --- C. Widget Căutare ---
         const searchWidget = new Search({
           view: myMapView,
@@ -70,6 +75,7 @@ const MapComponent = () => {
           console.log("🧹 Search cleared, removing route");
           routeLayer.removeAll();
           myMapView.closePopup();
+          setSearchLocation(null); // Hide the button
         });
 
         // Clear route when clicking on the map (not on a feature)
@@ -147,11 +153,11 @@ const MapComponent = () => {
                       <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
 
                       <p style="margin:0 0 6px 0;">📧 <b>Email:</b> ${
-                        email !== "—" ? `<a href="mailto:${email}">${email}</a>` : email
+                        email !== "—" ? `<a href="mailto:${email}" style="color: #0079c1; text-decoration: none;">${email}</a>` : email
                       }</p>
 
                       <p style="margin:0 0 6px 0;">📞 <b>Telefon:</b> ${
-                        phone !== "—" ? `<a href="tel:${phone}">${phone}</a>` : phone
+                        phone !== "—" ? `<a href="tel:${phone}" style="color: #0079c1; text-decoration: none;">${phone}</a>` : phone
                       }</p>
 
                       <p style="margin:0 0 10px 0;">🕒 <b>Program:</b> ${program}</p>
@@ -221,14 +227,17 @@ const MapComponent = () => {
         // --- E. Event Handler ---
         searchWidget.on("select-result", async (event) => {
           console.log("📍 Adresă găsită:", event.result.name);
-          const userLocation = event.result.feature.geometry;
+          const location = event.result.feature.geometry;
+
+          // Store location and draw pin, but don't route automatically
+          setSearchLocation(location);
 
           // Curățăm rutele vechi
           routeLayer.removeAll();
 
           // Desenăm pin user
           const userGraphic = new Graphic({
-            geometry: userLocation,
+            geometry: location,
             symbol: {
               type: "simple-marker",
               style: "diamond",
@@ -239,7 +248,7 @@ const MapComponent = () => {
           });
           routeLayer.add(userGraphic);
 
-          await findNearestAndRoute(userLocation);
+          console.log("📍 Location marked. Click 'Find Nearest Center' to route.");
         });
 
         // --- F. Firebase Load & FeatureLayer Creation ---
@@ -319,9 +328,9 @@ const MapComponent = () => {
 
                   <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
 
-                  <p style="margin:0 0 6px 0;">📧 <b>Email:</b> <a href="mailto:{contact_email}">{contact_email}</a></p>
+                  <p style="margin:0 0 6px 0;">📧 <b>Email:</b> <a href="mailto:{contact_email}" style="color: #0079c1; text-decoration: none;">{contact_email}</a></p>
 
-                  <p style="margin:0 0 6px 0;">📞 <b>Telefon:</b> <a href="tel:{contact_phone}">{contact_phone}</a></p>
+                  <p style="margin:0 0 6px 0;">📞 <b>Telefon:</b> <a href="tel:{contact_phone}" style="color: #0079c1; text-decoration: none;">{contact_phone}</a></p>
 
                   <p style="margin:0;">🕒 <b>Program:</b> {program}</p>
                 </div>
@@ -348,7 +357,151 @@ const MapComponent = () => {
     };
   }, []);
 
-  return <div ref={mapDiv} style={{ height: "100vh", width: "100%" }}></div>;
+  return (
+    <div style={{ position: "relative", height: "100vh", width: "100%" }}>
+      <div ref={mapDiv} style={{ height: "100%", width: "100%" }}></div>
+      
+      {/* Find Nearest Center Button */}
+      {searchLocation && (
+        <button
+          onClick={async () => {
+            if (searchLocation) {
+              const centers = centersDataRef.current;
+              if (centers.length === 0) {
+                alert("Centrele se încarcă...");
+                return;
+              }
+
+              let closestCenter = null;
+              let minDistance = Infinity;
+
+              centers.forEach((center) => {
+                const centerGeo = new Point({
+                  latitude: Number(center.latitude),
+                  longitude: Number(center.longitude)
+                });
+
+                let centerProjected = centerGeo;
+                if (
+                  searchLocation.spatialReference.isWebMercator &&
+                  !centerGeo.spatialReference.isWebMercator
+                ) {
+                  centerProjected = webMercatorUtils.geographicToWebMercator(centerGeo);
+                }
+
+                const dist = geometryEngine.distance(searchLocation, centerProjected, "kilometers");
+
+                if (dist < minDistance) {
+                  minDistance = dist;
+                  closestCenter = center;
+                }
+              });
+
+              if (closestCenter) {
+                console.log(`🏆 Routing to: ${closestCenter.name} (${minDistance.toFixed(2)} km)`);
+                
+                // Perform routing
+                const routeUrl = "https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
+                const endPoint = new Point({
+                  latitude: Number(closestCenter.latitude),
+                  longitude: Number(closestCenter.longitude)
+                });
+
+                const routeParams = new RouteParameters({
+                  stops: new FeatureSet({
+                    features: [
+                      new Graphic({ geometry: searchLocation }),
+                      new Graphic({ geometry: endPoint })
+                    ]
+                  }),
+                  returnDirections: true
+                });
+
+                try {
+                  const data = await route.solve(routeUrl, routeParams);
+                  if (data.routeResults.length > 0) {
+                    const result = data.routeResults[0].route;
+                    const distanceKm = result.attributes.Total_Kilometers.toFixed(2);
+                    const timeMin = result.attributes.Total_TravelTime.toFixed(0);
+
+                    result.symbol = {
+                      type: "simple-line",
+                      color: [50, 50, 255, 0.8],
+                      width: 5
+                    };
+
+                    // Get map view from ref (we need to store it)
+                    const mapViewElem = mapDiv.current;
+                    if (mapViewElem && mapViewElem.__mapView) {
+                      const view = mapViewElem.__mapView;
+                      const routeLayerRef = mapViewElem.__routeLayer;
+                      
+                      routeLayerRef.add(result);
+                      view.goTo(result.geometry.extent.expand(1.4));
+
+                      const email = closestCenter.contact_email || "—";
+                      const phone = closestCenter.contact_phone || "—";
+                      const program = closestCenter.program || "—";
+                      const address = closestCenter.address || "—";
+
+                      view.closePopup();
+                      view.openPopup({
+                        title: closestCenter.name,
+                        location: endPoint,
+                        content: `
+                          <div style="font-family: sans-serif; padding: 8px;">
+                            <p style="margin:0 0 8px 0;">📍 <b>Adresă:</b> ${address}</p>
+                            <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
+                            <p style="margin:0 0 6px 0;">📧 <b>Email:</b> ${
+                              email !== "—" ? `<a href="mailto:${email}" style="color: #0079c1; text-decoration: none;">${email}</a>` : email
+                            }</p>
+                            <p style="margin:0 0 6px 0;">📞 <b>Telefon:</b> ${
+                              phone !== "—" ? `<a href="tel:${phone}" style="color: #0079c1; text-decoration: none;">${phone}</a>` : phone
+                            }</p>
+                            <p style="margin:0 0 10px 0;">🕒 <b>Program:</b> ${program}</p>
+                            <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
+                            <div style="display:flex; justify-content:space-between;">
+                              <span>🚗 <b>${distanceKm} km</b></span>
+                              <span>⏱️ <b>${timeMin} min</b></span>
+                            </div>
+                          </div>
+                        `
+                      });
+                    }
+                  }
+                } catch (error) {
+                  console.error("❌ Routing error:", error);
+                }
+              }
+            }
+          }}
+          style={{
+            position: "absolute",
+            top: "50px",
+            right: "15px",
+            width: "240px",
+            height: "35px",
+            backgroundColor: "#f3f3f3",
+            border: "1px solid rgba(0, 0, 0, 0.3)",
+            borderRadius: "0px",
+            padding: "9px 12px",
+            fontSize: "14px",
+            fontFamily: "'Avenir Next', Arial, sans-serif",
+            color: "#323232",
+            cursor: "pointer",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            gap: "6px"
+          }}
+        >
+          <span style={{ fontSize: "16px" }}>🩸</span>
+          Find Nearest Center
+        </button>
+      )}
+    </div>
+  );
 };
 
 export default MapComponent;

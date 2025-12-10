@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import Map from "@arcgis/core/Map";
 import MapView from "@arcgis/core/views/MapView";
 import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer";
+import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 import Graphic from "@arcgis/core/Graphic";
 import Point from "@arcgis/core/geometry/Point";
 import * as geometryEngine from "@arcgis/core/geometry/geometryEngine";
@@ -39,9 +40,7 @@ const MapComponent = () => {
         // --- A. Setup Hartă ---
         const map = new Map({ basemap: "arcgis/navigation" });
 
-        const graphicsLayer = new GraphicsLayer();
-        map.add(graphicsLayer);
-
+        // routeLayer stays as GraphicsLayer for user location + routes
         const routeLayer = new GraphicsLayer();
         map.add(routeLayer);
 
@@ -65,6 +64,21 @@ const MapComponent = () => {
           resultGraphicEnabled: false
         });
         myMapView.ui.add(searchWidget, "top-right");
+
+        // Clear route when search is cleared (X button)
+        searchWidget.on("search-clear", () => {
+          console.log("🧹 Search cleared, removing route");
+          routeLayer.removeAll();
+          myMapView.closePopup();
+        });
+
+        // Clear route when clicking on the map (not on a feature)
+        myMapView.on("click", (event) => {
+          // Always clear route when clicking anywhere on the map
+          // (clicking a center will show its popup via the layer's popupTemplate)
+          console.log("🧹 Map clicked, removing route");
+          routeLayer.removeAll();
+        });
 
         // --- D. Logica de Rutare (Definită AICI pentru a vedea 'myMapView') ---
 
@@ -112,7 +126,7 @@ const MapComponent = () => {
               // Zoom pe rută
               myMapView.goTo(result.geometry.extent.expand(1.4));
 
-              // --- POPUP (FIX): folosește view.openPopup() ---
+              // --- POPUP: match the center marker style + add route info ---
               try {
                 if (myMapView) {
                   // închide orice popup vechi
@@ -121,27 +135,28 @@ const MapComponent = () => {
                 const email = centerData.contact_email || "—";
                 const phone = centerData.contact_phone || "—";
                 const program = centerData.program || "—";
+                const address = centerData.address || "—";
 
                 myMapView.openPopup({
-                  title: "Traseu Către Donare",
+                  title: centerData.name,
                   location: endPointForPopup,
                   content: `
-                    <div style="font-family: sans-serif; padding: 10px;">
-                      <h3 style="margin: 0 0 10px 0; color: #d32f2f;">🏥 ${centerData.name}</h3>
+                    <div style="font-family: sans-serif; padding: 8px;">
+                      <p style="margin:0 0 8px 0;">📍 <b>Adresă:</b> ${address}</p>
 
-                      <p style="margin:0 0 8px 0;">📍 <b>Adresă:</b> ${centerData.address || "—"}</p>
+                      <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
 
                       <p style="margin:0 0 6px 0;">📧 <b>Email:</b> ${
-                        email !== "—" ? `<a href="mailto:${email}">${email}</a>` : "—"
+                        email !== "—" ? `<a href="mailto:${email}">${email}</a>` : email
                       }</p>
 
                       <p style="margin:0 0 6px 0;">📞 <b>Telefon:</b> ${
-                        phone !== "—" ? `<a href="tel:${phone}">${phone}</a>` : "—"
+                        phone !== "—" ? `<a href="tel:${phone}">${phone}</a>` : phone
                       }</p>
 
                       <p style="margin:0 0 10px 0;">🕒 <b>Program:</b> ${program}</p>
 
-                      <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+                      <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
 
                       <div style="display:flex; justify-content:space-between;">
                         <span>🚗 <b>${distanceKm} km</b></span>
@@ -227,7 +242,7 @@ const MapComponent = () => {
           await findNearestAndRoute(userLocation);
         });
 
-        // --- F. Firebase Load ---
+        // --- F. Firebase Load & FeatureLayer Creation ---
         try {
           const snapshot = await getDocs(centersCollection);
           const dataList = [];
@@ -240,51 +255,83 @@ const MapComponent = () => {
 
           centersDataRef.current = dataList;
 
-          // Pini centre
-          graphicsLayer.removeAll();
-          dataList.forEach((center) => {
-            const g = new Graphic({
-              geometry: new Point({
+          // Build features for FeatureLayer
+          const features = dataList.map((center, idx) => {
+            const geo = new Point({
+              latitude: parseFloat(center.latitude),
+              longitude: parseFloat(center.longitude),
+              spatialReference: { wkid: 4326 } // lat/lon (WGS84)
+            });
+
+            // Convert to WebMercator for consistent display
+            const geoWebMercator = webMercatorUtils.geographicToWebMercator(geo);
+
+            const email = center.contact_email || "—";
+            const phone = center.contact_phone || "—";
+            const program = center.program || "—";
+            const address = center.address || "—";
+
+            return new Graphic({
+              geometry: geoWebMercator,
+              attributes: {
+                ObjectID: idx + 1,
+                name: center.name || "",
+                address: address,
+                contact_email: email,
+                contact_phone: phone,
+                program: program,
                 latitude: parseFloat(center.latitude),
                 longitude: parseFloat(center.longitude)
-              }),
+              }
+            });
+          });
+
+          // Create client-side FeatureLayer
+          const centersLayer = new FeatureLayer({
+            source: features,
+            objectIdField: "ObjectID",
+            fields: [
+              { name: "ObjectID", alias: "ObjectID", type: "oid" },
+              { name: "name", alias: "Name", type: "string" },
+              { name: "address", alias: "Address", type: "string" },
+              { name: "contact_email", alias: "Email", type: "string" },
+              { name: "contact_phone", alias: "Phone", type: "string" },
+              { name: "program", alias: "Program", type: "string" },
+              { name: "latitude", alias: "Latitude", type: "double" },
+              { name: "longitude", alias: "Longitude", type: "double" }
+            ],
+            geometryType: "point",
+            spatialReference: { wkid: 3857 }, // WebMercator
+            renderer: {
+              type: "simple",
               symbol: {
                 type: "simple-marker",
                 color: [226, 6, 19],
                 outline: { color: "white", width: 1 },
                 size: "10px"
-              },
-              popupTemplate: {
-                title: center.name,
-                content: (() => {
-                  const email = center.contact_email || "—";
-                  const phone = center.contact_phone || "—";
-                  const program = center.program || "—";
-                  const address = center.address || "—";
+              }
+            },
+            popupTemplate: {
+              title: "{name}",
+              content: `
+                <div style="font-family: sans-serif; padding: 8px;">
+                  <p style="margin:0 0 8px 0;">📍 <b>Adresă:</b> {address}</p>
 
-                  return `
-                    <div style="font-family: sans-serif; padding: 8px;">
-                      <p style="margin:0 0 8px 0;">📍 <b>Adresă:</b> ${address}</p>
+                  <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
 
-                      <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
+                  <p style="margin:0 0 6px 0;">📧 <b>Email:</b> <a href="mailto:{contact_email}">{contact_email}</a></p>
 
-                      <p style="margin:0 0 6px 0;">📧 <b>Email:</b> ${
-                        email !== "—" ? `<a href="mailto:${email}">${email}</a>` : "—"
-                      }</p>
+                  <p style="margin:0 0 6px 0;">📞 <b>Telefon:</b> <a href="tel:{contact_phone}">{contact_phone}</a></p>
 
-                      <p style="margin:0 0 6px 0;">📞 <b>Telefon:</b> ${
-                        phone !== "—" ? `<a href="tel:${phone}">${phone}</a>` : "—"
-                      }</p>
-
-                      <p style="margin:0;">🕒 <b>Program:</b> ${program}</p>
-                    </div>
-                  `;
-                })()
-              },
-              attributes: center
-            });
-            graphicsLayer.add(g);
+                  <p style="margin:0;">🕒 <b>Program:</b> {program}</p>
+                </div>
+              `
+            },
+            popupEnabled: true
           });
+
+          map.add(centersLayer);
+          console.log(`✅ FeatureLayer with ${features.length} centers added to map.`);
         } catch (error) {
           console.error("Eroare Firebase:", error);
         }

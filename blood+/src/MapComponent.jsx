@@ -18,15 +18,17 @@ import "@arcgis/core/assets/esri/themes/light/main.css";
 
 // --- Firebase Imports ---
 import { getDocs } from "firebase/firestore";
-import { centersCollection } from "./firebase/firebaseService";
+import { centersCollection, bloodStockCollection } from "./firebase/firebaseService";
 
 const MapComponent = () => {
   const mapDiv = useRef(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [searchLocation, setSearchLocation] = useState(null);
+  const [maxDistance, setMaxDistance] = useState(50); // distanță max implicită: 50 km
 
   // Stocăm centrele într-un ref pentru a fi accesibile instantaneu în funcțiile hărții
   const centersDataRef = useRef([]);
+  const centersLayerRef = useRef(null);
 
   useEffect(() => {
     // 1. Configurare API Key
@@ -142,12 +144,38 @@ const MapComponent = () => {
                 const phone = centerData.contact_phone || "—";
                 const program = centerData.program || "—";
                 const address = centerData.address || "—";
+                
+                // Format blood stock for routing popup
+                const bloodStockHTML = centerData.bloodStock && centerData.bloodStock.length > 0
+                  ? (() => {
+                      // Define the order for display
+                      const rowOrder = ['0-', '0+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'];
+                      const stockMap = {};
+                      centerData.bloodStock.forEach(stock => {
+                        stockMap[stock.blood_group] = stock.quantity || 0;
+                      });
+                      
+                      const firstRow = rowOrder.slice(0, 4).map(bg => {
+                        const quantity = stockMap[bg] !== undefined ? stockMap[bg] : 0;
+                        const color = quantity === 0 ? '#d32f2f' : quantity < 10 ? '#f57c00' : '#388e3c';
+                        return `<span style="display:inline-block; margin:2px 8px 2px 0; padding:4px 8px; background-color:${color}; color:white; border-radius:4px; font-weight:500;">${bg}: ${quantity}</span>`;
+                      }).join('');
+                      
+                      const secondRow = rowOrder.slice(4, 8).map(bg => {
+                        const quantity = stockMap[bg] !== undefined ? stockMap[bg] : 0;
+                        const color = quantity === 0 ? '#d32f2f' : quantity < 10 ? '#f57c00' : '#388e3c';
+                        return `<span style="display:inline-block; margin:2px 8px 2px 0; padding:4px 8px; background-color:${color}; color:white; border-radius:4px; font-weight:500;">${bg}: ${quantity}</span>`;
+                      }).join('');
+                      
+                      return `<div style="margin-bottom:4px;">${firstRow}</div><div>${secondRow}</div>`;
+                    })()
+                  : '<span style="color:#999;">Nu există date despre stoc</span>';
 
                 myMapView.openPopup({
                   title: centerData.name,
                   location: endPointForPopup,
                   content: `
-                    <div style="font-family: sans-serif; padding: 8px;">
+                    <div style="font-family: sans-serif; padding: 8px; width: 480px; max-width: 480px;">
                       <p style="margin:0 0 8px 0;">📍 <b>Adresă:</b> ${address}</p>
 
                       <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
@@ -164,12 +192,23 @@ const MapComponent = () => {
 
                       <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
 
-                      <div style="display:flex; justify-content:space-between;">
+                      <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
                         <span>🚗 <b>${distanceKm} km</b></span>
                         <span>⏱️ <b>${timeMin} min</b></span>
                       </div>
+
+                      <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
+
+                      <div style="margin-top:10px;">
+                        <p style="margin:0 0 8px 0; font-weight:600;">🩸 Stocuri de sânge disponibile:</p>
+                        <div style="margin-top:8px;">
+                          ${bloodStockHTML}
+                        </div>
+                      </div>
                     </div>
-                  `
+                  `,
+                  maxInlineSize: 500,
+                  maxBlockSize: 500
                 });
 
                   console.log("✅ Popup deschis cu succes!");
@@ -255,12 +294,24 @@ const MapComponent = () => {
         try {
           const snapshot = await getDocs(centersCollection);
           const dataList = [];
-          snapshot.forEach((doc) => {
-            const data = doc.data();
-            if (data.latitude && data.longitude) {
-              dataList.push(data);
+          
+          // Fetch centers and their blood stock
+          for (const docSnap of snapshot.docs) {
+            const centerData = docSnap.data();
+            if (centerData.latitude && centerData.longitude) {
+              // Fetch blood stock for this center
+              const stockSnapshot = await getDocs(bloodStockCollection(docSnap.id));
+              const bloodStock = [];
+              stockSnapshot.forEach((stockDoc) => {
+                bloodStock.push(stockDoc.data());
+              });
+              
+              // Add blood stock to center data
+              centerData.bloodStock = bloodStock;
+              centerData.center_id = docSnap.id;
+              dataList.push(centerData);
             }
-          });
+          }
 
           centersDataRef.current = dataList;
 
@@ -279,6 +330,32 @@ const MapComponent = () => {
             const phone = center.contact_phone || "—";
             const program = center.program || "—";
             const address = center.address || "—";
+            
+            // Format blood stock for display
+            const bloodStockHTML = center.bloodStock && center.bloodStock.length > 0
+              ? (() => {
+                  // Define the order for display
+                  const rowOrder = ['0-', '0+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'];
+                  const stockMap = {};
+                  center.bloodStock.forEach(stock => {
+                    stockMap[stock.blood_group] = stock.quantity || 0;
+                  });
+                  
+                  const firstRow = rowOrder.slice(0, 4).map(bg => {
+                    const quantity = stockMap[bg] !== undefined ? stockMap[bg] : 0;
+                    const color = quantity === 0 ? '#d32f2f' : quantity < 10 ? '#f57c00' : '#388e3c';
+                    return `<span style="display:inline-block; margin:2px 8px 2px 0; padding:4px 8px; background-color:${color}; color:white; border-radius:4px; font-weight:500;">${bg}: ${quantity}</span>`;
+                  }).join('');
+                  
+                  const secondRow = rowOrder.slice(4, 8).map(bg => {
+                    const quantity = stockMap[bg] !== undefined ? stockMap[bg] : 0;
+                    const color = quantity === 0 ? '#d32f2f' : quantity < 10 ? '#f57c00' : '#388e3c';
+                    return `<span style="display:inline-block; margin:2px 8px 2px 0; padding:4px 8px; background-color:${color}; color:white; border-radius:4px; font-weight:500;">${bg}: ${quantity}</span>`;
+                  }).join('');
+                  
+                  return `<div style="margin-bottom:4px;">${firstRow}</div><div>${secondRow}</div>`;
+                })()
+              : '<span style="color:#999;">Nu există date despre stoc</span>';
 
             return new Graphic({
               geometry: geoWebMercator,
@@ -290,7 +367,8 @@ const MapComponent = () => {
                 contact_phone: phone,
                 program: program,
                 latitude: parseFloat(center.latitude),
-                longitude: parseFloat(center.longitude)
+                longitude: parseFloat(center.longitude),
+                bloodStockHTML: bloodStockHTML
               }
             });
           });
@@ -307,7 +385,8 @@ const MapComponent = () => {
               { name: "contact_phone", alias: "Phone", type: "string" },
               { name: "program", alias: "Program", type: "string" },
               { name: "latitude", alias: "Latitude", type: "double" },
-              { name: "longitude", alias: "Longitude", type: "double" }
+              { name: "longitude", alias: "Longitude", type: "double" },
+              { name: "bloodStockHTML", alias: "Blood Stock", type: "string" }
             ],
             geometryType: "point",
             spatialReference: { wkid: 3857 }, // WebMercator
@@ -323,7 +402,7 @@ const MapComponent = () => {
             popupTemplate: {
               title: "{name}",
               content: `
-                <div style="font-family: sans-serif; padding: 8px;">
+                <div style="font-family: sans-serif; padding: 8px; width: 400px; max-width: 420px;">
                   <p style="margin:0 0 8px 0;">📍 <b>Adresă:</b> {address}</p>
 
                   <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
@@ -332,14 +411,26 @@ const MapComponent = () => {
 
                   <p style="margin:0 0 6px 0;">📞 <b>Telefon:</b> <a href="tel:{contact_phone}" style="color: #0079c1; text-decoration: none;">{contact_phone}</a></p>
 
-                  <p style="margin:0;">🕒 <b>Program:</b> {program}</p>
+                  <p style="margin:0 0 10px 0;">🕒 <b>Program:</b> {program}</p>
+
+                  <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
+
+                  <div style="margin-top:10px;">
+                    <p style="margin:0 0 8px 0; font-weight:600;">🩸 Stocuri de sânge disponibile:</p>
+                    <div style="margin-top:8px;">
+                      {bloodStockHTML}
+                    </div>
+                  </div>
                 </div>
-              `
+              `,
+              maxInlineSize: 500,
+              maxBlockSize: 500
             },
             popupEnabled: true
           });
 
           map.add(centersLayer);
+          centersLayerRef.current = centersLayer; // Store reference for filtering
           console.log(`✅ FeatureLayer with ${features.length} centers added to map.`);
         } catch (error) {
           console.error("Eroare Firebase:", error);
@@ -356,6 +447,48 @@ const MapComponent = () => {
       }
     };
   }, []);
+
+  // Filter centers by distance when maxDistance or searchLocation changes
+  useEffect(() => {
+    if (!centersLayerRef.current || !searchLocation) {
+      // Reset filter if no search location
+      if (centersLayerRef.current) {
+        centersLayerRef.current.definitionExpression = "1=1";
+      }
+      return;
+    }
+
+    const validObjectIDs = [];
+    centersDataRef.current.forEach((center, idx) => {
+      const centerGeo = new Point({
+        latitude: Number(center.latitude),
+        longitude: Number(center.longitude),
+        spatialReference: { wkid: 4326 }
+      });
+
+      let centerProjected = centerGeo;
+      if (
+        searchLocation.spatialReference.isWebMercator &&
+        !centerGeo.spatialReference.isWebMercator
+      ) {
+        centerProjected = webMercatorUtils.geographicToWebMercator(centerGeo);
+      }
+
+      const dist = geometryEngine.distance(searchLocation, centerProjected, "kilometers");
+
+      if (dist <= maxDistance) {
+        validObjectIDs.push(idx + 1); // ObjectID starts at 1
+      }
+    });
+
+    if (validObjectIDs.length > 0) {
+      centersLayerRef.current.definitionExpression = `ObjectID IN (${validObjectIDs.join(",")})`;
+      console.log(`🔍 Filtered to ${validObjectIDs.length} centers within ${maxDistance} km`);
+    } else {
+      centersLayerRef.current.definitionExpression = "1=0"; // show nothing
+      console.log(`🔍 No centers within ${maxDistance} km`);
+    }
+  }, [maxDistance, searchLocation]);
 
   return (
     <div style={{ position: "relative", height: "100vh", width: "100%" }}>
@@ -484,7 +617,7 @@ const MapComponent = () => {
             backgroundColor: "#f3f3f3",
             border: "1px solid rgba(0, 0, 0, 0.3)",
             borderRadius: "0px",
-            padding: "9px 12px",
+            padding: "6px 6px",
             fontSize: "14px",
             fontFamily: "'Avenir Next', Arial, sans-serif",
             color: "#323232",
@@ -493,12 +626,64 @@ const MapComponent = () => {
             zIndex: 1000,
             display: "flex",
             alignItems: "center",
-            gap: "6px"
+            gap: "2px"
           }}
         >
-          <span style={{ fontSize: "16px" }}>🩸</span>
-          Find Nearest Center
+          <span>🩸</span>
+          Gaseste cel mai apropiat centru
         </button>
+      )}
+
+      {/* Distance Filter Dropdown */}
+      {searchLocation && (
+        <div style={{
+          position: "absolute",
+          top: "90px",
+          right: "15px",
+          width: "215px",
+          backgroundColor: "#f3f3f3",
+          border: "1px solid rgba(0, 0, 0, 0.3)",
+          borderRadius: "0px",
+          padding: "12px",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+          zIndex: 1000,
+          fontFamily: "'Avenir Next', Arial, sans-serif",
+          fontSize: "14px",
+          color: "#323232"
+        }}>
+          <label style={{
+            display: "block",
+            marginBottom: "8px",
+            fontSize: "14px",
+            fontWeight: 500,
+            color: "#323232"
+          }}>
+            Distanta maxima pana la centre
+          </label>
+          <select
+            value={maxDistance}
+            onChange={(e) => setMaxDistance(Number(e.target.value))}
+            style={{
+              width: "100%",
+              padding: "6px 8px",
+              border: "1px solid rgba(0, 0, 0, 0.3)",
+              borderRadius: "0px",
+              backgroundColor: "#ffffff",
+              fontSize: "14px",
+              fontFamily: "'Avenir Next', Arial, sans-serif",
+              color: "#323232",
+              cursor: "pointer",
+              outline: "none"
+            }}
+          >
+            <option value={1}>1 km</option>
+            <option value={2}>2 km</option>
+            <option value={5}>5 km</option>
+            <option value={10}>10 km</option>
+            <option value={20}>20 km</option>
+            <option value={50}>50 km</option>
+          </select>
+        </div>
       )}
     </div>
   );

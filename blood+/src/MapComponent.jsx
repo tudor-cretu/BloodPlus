@@ -281,8 +281,8 @@ const MapComponent = () => {
               type: "simple-marker",
               style: "diamond",
               color: "blue",
-              size: "14px",
-              outline: { color: "white", width: 2 }
+              size: "18px",
+              outline: { color: "white", width: 3 }
             }
           });
           routeLayer.add(userGraphic);
@@ -395,8 +395,8 @@ const MapComponent = () => {
               symbol: {
                 type: "simple-marker",
                 color: [226, 6, 19],
-                outline: { color: "white", width: 1 },
-                size: "10px"
+                outline: { color: [0, 0, 0, 1], width: 3 },
+                size: "18px"
               }
             },
             popupTemplate: {

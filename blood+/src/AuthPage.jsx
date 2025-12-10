@@ -90,7 +90,6 @@ export default function AuthPage({ onContinueAsGuest, onAuthSuccess }) {
           </div>
 
           <div style={styles.featureBox}>
-            <div style={styles.featureTitle}>Ce poți face:</div>
             <ul style={{ ...styles.featureList, listStyle: "none", paddingLeft: 0, margin: 0 }}>
             <li style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 10 }}>
                 <span aria-hidden="true">🩸</span>
@@ -113,7 +112,7 @@ export default function AuthPage({ onContinueAsGuest, onAuthSuccess }) {
             Continuă fără cont →
           </button>
 
-          <div style={styles.smallNote}>
+          <div style={{ ...styles.smallNote, textAlign: "center" }}>
             Nu este nevoie de cont pentru a explora harta. Poți crea unul oricând.
           </div>
         </section>

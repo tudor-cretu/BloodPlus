@@ -6,112 +6,143 @@ import { useNavigate } from "react-router-dom";
 function AdminPage() {
   const [centers, setCenters] = useState([]);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
 
   useEffect(() => {
-    console.log("AdminPage mounted, fetching centers...");
     const fetchCenters = async () => {
-        try {
-            const snap = await getDocs(collection(db, "centers"));
-            const centersData = [];
+      try {
+        const snap = await getDocs(collection(db, "centers"));
+        const centersData = [];
 
-            for (let centerDoc of snap.docs) {
-                const stockSnap = await getDocs(collection(db, "centers", centerDoc.id, "blood_stock"));
-                const stockData = stockSnap.docs.map(s => ({ id: s.id, ...s.data() }));
+        for (let centerDoc of snap.docs) {
+          const stockSnap = await getDocs(
+            collection(db, "centers", centerDoc.id, "blood_stock")
+          );
+          const stockData = stockSnap.docs.map((s) => ({ id: s.id, ...s.data() }));
 
-                centersData.push({
-                    id: centerDoc.id,
-                    ...centerDoc.data(),
-                    blood_stock: stockData
-                });
-            }
-
-            setCenters(centersData);
-            setLoading(false);
-        } catch (error) {
-            console.error("Error fetching centers:", error); // ✅ DEBUG
-            setLoading(false);
+          centersData.push({
+            id: centerDoc.id,
+            ...centerDoc.data(),
+            blood_stock: stockData,
+          });
         }
+
+        setCenters(centersData);
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching centers:", err);
+        setLoading(false);
+      }
     };
     fetchCenters();
   }, []);
 
-  console.log("Loading:", loading, "Centers:", centers);
-
   if (loading) {
-    return <div style={{ padding: 20, fontSize: 20 }}>Se încarcă centrele...</div>;
-  }
-
-  if (centers.length === 0) {
     return (
-      <div style={{ padding: 20 }}>
-        <h1>Nu există centre în baza de date</h1>
-        <button onClick={() => navigate("/")}>⟵ Înapoi la hartă</button>
+      <div style={{ width: "100%", textAlign: "center", marginTop: 80, fontSize: 22 }}>
+        Se încarcă centrele...
       </div>
     );
   }
 
- return (
-    <div style={{
+  return (
+    <div
+      style={{
         width: "100%",
         minHeight: "100vh",
-        background: "#f5f5f5",
+        background: "#f7f7f7",
         display: "flex",
         flexDirection: "column",
-        alignItems: "center"
-    }}>
-    <button
+        alignItems: "center",
+        padding: "20px",
+      }}
+    >
+      {/* Buton înapoi */}
+      <button
         onClick={() => navigate("/")}
         style={{
-            position: "absolute",
-            top: 20,
-            left: 20,
-            padding: "10px 20px",
-            background: "white",
-            border: "1px solid #ccc",
-            borderRadius: 8,
-            cursor: "pointer",
-            zIndex: 1000
+          position: "absolute",
+          top: 20,
+          left: 20,
+          padding: "10px 15px",
+          background: "transparent",
+          color: "#007bff",
+          border: "none",
+          borderRadius: 8,
+          cursor: "pointer",
+          fontWeight: "bold",
         }}
-        >
-        ⟵ Înapoi la hartă
-    </button>
-    <div style={{ width: "100%", maxWidth: "900px", padding: 20 }}>
+      >
+        {"< "} Înapoi la hartă
+      </button>
 
-      <h1 style={{ marginBottom: 30 }}>Gestionare Centre</h1>
-      
-      {centers.map(center => (
-        <CenterEditor key={center.id} center={center} />
-      ))}
-    </div>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "850px",
+          background: "white",
+          padding: "30px",
+          borderRadius: 8,
+          marginTop: 40,
+          boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+        }}
+      >
+        <h1 style={{ textAlign: "center", marginBottom: 25, color: "#333" }}>
+          Gestionare Centre
+        </h1>
+
+        {/* Adaugă centru button */}
+        <button
+          onClick={() => navigate("/admin/add-center")}
+          style={{
+            width: "100%",
+            padding: "12px",
+            background: "#007bff",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+            fontSize: 16,
+            fontWeight: 600,
+            marginBottom: 25,
+          }}
+        >
+          + Adaugă centru nou
+        </button>
+
+        {/* Lista centrelor */}
+        {centers.map((center) => (
+          <CenterEditor key={center.id} center={center} />
+        ))}
+      </div>
     </div>
   );
 }
 
 function CenterEditor({ center }) {
-    const [open, setOpen] = useState(false); 
-    const [form, setForm] = useState({ ...center });
-    const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ ...center });
+  const [busy, setBusy] = useState(false);
 
-    const toggle = () => setOpen(!open);
+  const toggle = () => setOpen(!open);
 
-  const handleChange = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+  const handleChange = (key) => (e) =>
+    setForm({ ...form, [key]: e.target.value });
 
-  // Modificarea stocului
   const handleStockChange = (stockId) => (e) => {
-    const newStock = form.blood_stock.map(item =>
-      item.stock_id === stockId ? { ...item, quantity: Number(e.target.value) } : item
+    const updated = form.blood_stock.map((s) =>
+      s.stock_id === stockId ? { ...s, quantity: Number(e.target.value) } : s
     );
-    setForm({ ...form, blood_stock: newStock });
+    setForm({ ...form, blood_stock: updated });
   };
 
-  const onSubmit = async (e) => {
+  const saveChanges = async (e) => {
     e.preventDefault();
     setBusy(true);
-    try {
-      const centerRef = doc(db, "centers", center.id);
 
-      await updateDoc(centerRef, {
+    try {
+      // update center
+      await updateDoc(doc(db, "centers", center.id), {
         name: form.name,
         address: form.address,
         latitude: Number(form.latitude),
@@ -120,164 +151,132 @@ function CenterEditor({ center }) {
         contact_email: form.contact_email,
         program: form.program,
       });
-      for (let item of form.blood_stock) {
-        const stockRef = doc(db, "centers", center.id, "blood_stock", item.id);
-        await updateDoc(stockRef, {
-            quantity: item.quantity
-        });
-    }
 
-        alert("Centru actualizat cu succes!");
-    } catch(err) {
-        console.error("Eroare COMPLETĂ:", err);
-        console.error("Eroare mesaj:", err.message);
-        console.error("Eroare cod:", err.code);
-        alert("Eroare la actualizarea centrului");
+      // update stock
+      for (let item of form.blood_stock) {
+        await updateDoc(
+          doc(db, "centers", center.id, "blood_stock", item.id),
+          { quantity: item.quantity }
+        );
+      }
+
+      alert("Modificări salvate!");
+    } catch (err) {
+      console.error(err);
+      alert("Eroare la actualizare.");
     } finally {
-        setBusy(false);
+      setBusy(false);
     }
   };
 
   return (
     <div
-        style={{
+      style={{
         marginBottom: 20,
-        width: "100%",
-        background: "white",
         borderRadius: 8,
-        border: "1px solid #ccc",
-        overflow: "hidden"
-        }}
+        overflow: "hidden",
+        border: "1px solid #e1e1e1",
+        background: "white",
+      }}
     >
-
-        {/* HEADER CLICKABLE */}
-        <div
+      {/* header */}
+      <div
         onClick={toggle}
         style={{
-            padding: 20,
-            background: "#fafafa",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            cursor: "pointer",
-            borderBottom: open ? "1px solid #ddd" : "none"
+          padding: 18,
+          background: "#fafafa",
+          cursor: "pointer",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          fontWeight: 600,
+          borderBottom: open ? "1px solid #ddd" : "none",
         }}
-        >
-        <h3 style={{ margin: 0 }}>{form.name}</h3>
-        <span style={{ fontSize: 22 }}>
-            {open ? "▾" : "▸"}
-        </span>
-        </div>
+      >
+        <span>{center.name}</span>
+        <span style={{ fontSize: 22 }}>{open ? "▾" : "▸"}</span>
+      </div>
 
-        {/* FORMUL CLASIC — ignorat până aici, păstrat IDENTIC */}
-        {open && (
+      {open && (
         <form
-            onSubmit={onSubmit}
-            style={{
-            padding: 20
-            }}
+          onSubmit={saveChanges}
+          style={{ padding: 20, animation: "fadeIn 0.2s ease" }}
         >
-            <label style={{ display: "block", marginBottom: 5, fontWeight: 600 }}>Nume centru:</label>
-            <input
-            value={form.name}
-            onChange={handleChange("name")}
-            style={{ display: "block", marginBottom: 15, padding: 10, width: "100%" }}
-            />
-
-            <label style={{ display: "block", marginBottom: 5, fontWeight: 600 }}>Adresă:</label>
-            <input
-            value={form.address}
-            onChange={handleChange("address")}
-            style={{ display: "block", marginBottom: 15, padding: 10, width: "100%" }}
-            />
-
-            <label style={{ display: "block", marginBottom: 5, fontWeight: 600 }}>Latitudine:</label>
-            <input
-            value={form.latitude}
-            onChange={handleChange("latitude")}
-            style={{ display: "block", marginBottom: 15, padding: 10, width: "100%" }}
-            />
-
-            <label style={{ display: "block", marginBottom: 5, fontWeight: 600 }}>Longitudine:</label>
-            <input
-            value={form.longitude}
-            onChange={handleChange("longitude")}
-            style={{ display: "block", marginBottom: 15, padding: 10, width: "100%" }}
-            />
-
-            <label style={{ display: "block", marginBottom: 5, fontWeight: 600 }}>Telefon:</label>
-            <input
-            value={form.contact_phone}
-            onChange={handleChange("contact_phone")}
-            style={{ display: "block", marginBottom: 15, padding: 10, width: "100%" }}
-            />
-
-            <label style={{ display: "block", marginBottom: 5, fontWeight: 600 }}>Email:</label>
-            <input
-            value={form.contact_email}
-            onChange={handleChange("contact_email")}
-            style={{ display: "block", marginBottom: 15, padding: 10, width: "100%" }}
-            />
-
-            <label style={{ display: "block", marginBottom: 5, fontWeight: 600 }}>Program:</label>
-            <input
-            value={form.program}
-            onChange={handleChange("program")}
-            style={{ display: "block", marginBottom: 15, padding: 10, width: "100%" }}
-            />
-
-            <h4 style={{ marginTop: 20 }}>Stoc sânge</h4>
-            {form.blood_stock.map(item => (
-            <div 
-                key={item.stock_id}
+          {/* fields */}
+          {[
+            ["name", "Nume centru"],
+            ["address", "Adresă"],
+            ["latitude", "Latitudine"],
+            ["longitude", "Longitudine"],
+            ["contact_phone", "Telefon"],
+            ["contact_email", "Email"],
+            ["program", "Program"],
+          ].map(([key, label]) => (
+            <div key={key} style={{ marginBottom: 15 }}>
+              <label style={{ fontWeight: 600, marginBottom: 5, display: "block" }}>
+                {label}
+              </label>
+              <input
+                value={form[key]}
+                onChange={handleChange(key)}
                 style={{
-                marginBottom: 10,
+                  width: "100%",
+                  padding: 10,
+                  border: "1px solid #ddd",
+                  borderRadius: 6,
+                }}
+              />
+            </div>
+          ))}
+
+          <h3 style={{ marginTop: 20, marginBottom: 10 }}>Stoc de sânge</h3>
+
+          {form.blood_stock.map((item) => (
+            <div
+              key={item.stock_id}
+              style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 20
-                }}
+                gap: 20,
+                marginBottom: 10,
+              }}
             >
-                <div style={{ width: 80, fontWeight: 600 }}>
-                {item.blood_group}:
-                </div>
-
-                <input
+              <div style={{ width: 60, fontWeight: 600 }}>{item.blood_group}</div>
+              <input
                 type="number"
                 value={item.quantity}
                 onChange={handleStockChange(item.stock_id)}
                 style={{
-                    padding: 8,
-                    width: 100,
-                    border: "1px solid #ccc",
-                    borderRadius: 6
+                  padding: 8,
+                  width: 100,
+                  border: "1px solid #ddd",
+                  borderRadius: 6,
                 }}
-                />
+              />
             </div>
-            ))}
+          ))}
 
-            <button
-            type="submit"
+          <button
             disabled={busy}
             style={{
-                marginTop: 20,
-                padding: "12px 24px",
-                cursor: busy ? "not-allowed" : "pointer",
-                background: busy ? "#ccc" : "#4CAF50",
-                color: "white",
-                border: "none",
-                borderRadius: 6,
-                fontSize: 16,
-                fontWeight: 600
+              marginTop: 20,
+              width: "100%",
+              padding: "12px",
+              background: busy ? "#ccc" : "#4CAF50",
+              color: "white",
+              border: "none",
+              borderRadius: 6,
+              fontSize: 16,
+              cursor: busy ? "not-allowed" : "pointer",
+              fontWeight: 600,
             }}
-            >
-            {busy ? "Se actualizează..." : "Salvează modificări"}
-            </button>
+          >
+            {busy ? "Se salvează..." : "Salvează modificări"}
+          </button>
         </form>
-        )}
-
+      )}
     </div>
-    );
-
+  );
 }
 
 export default AdminPage;

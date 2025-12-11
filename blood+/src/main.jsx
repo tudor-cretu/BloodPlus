@@ -4,6 +4,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
 import AdminPage from './AdminPage.jsx'
+import UserPage from "./UserPage.jsx";
+import AddCenterPage from "./AddCentersPage.jsx";
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -11,6 +13,8 @@ createRoot(document.getElementById('root')).render(
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/account" element={<UserPage />} />
+        <Route path="/admin/add-center" element={<AddCenterPage />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

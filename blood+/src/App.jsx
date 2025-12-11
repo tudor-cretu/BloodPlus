@@ -109,6 +109,28 @@ function App() {
               Admin Panel
             </button>
           )}
+          {/* Buton My Account – vizibil doar pentru donor */}
+          {currentUser && currentUser.role === "donor" && (
+          <button
+            onClick={() => navigate("/account")}
+            style={{
+              position: "absolute",
+              bottom: 20,
+              left: 12,
+              zIndex: 2000,
+              padding: "8px 10px",
+              borderRadius: 10,
+              border: "1px solid rgba(0,0,0,0.2)",
+              background: "linear-gradient(135deg, #d32f2f, #ff5252)",
+              color: "white",
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "Arial, sans-serif",
+            }}
+          >
+            My Account
+          </button>
+        )}
         </>
       )}
     </div>

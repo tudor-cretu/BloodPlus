@@ -1,16 +1,45 @@
 import React, { useEffect, useState } from "react";
 import MapComponent from "./MapComponent";
 import AuthPage from "./AuthPage";
+import { auth, db } from "./firebase/firebaseConfig.js";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 // import { seedCenters } from "./firebase/seedCenters"; // îl poți lăsa comentat
 
 function App() {
   // "auth" | "map"
   const [screen, setScreen] = useState("auth");
+  const [currentUser, setCurrentUser] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const mode = localStorage.getItem("app_mode"); // "guest" | "user" | null
-    if (mode === "guest" || mode === "user") setScreen("map");
+    if (mode === "guest") {
+      setScreen("map"); // guest merge direct pe hartă
+      setCurrentUser(null); // nu avem user
+      return;
+    }
+
+    if (mode === "user") {
+      setScreen("map");
+
+      // ✅ Folosește onAuthStateChanged pentru a detecta userul
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          const docSnap = await getDoc(doc(db, "users", user.uid));
+          if (docSnap.exists()) {
+            setCurrentUser(docSnap.data());
+          }
+        } else {
+          setCurrentUser(null);
+        }
+      });
+
+      return () => unsubscribe();
+    }
   }, []);
+
 
   const enterAsGuest = () => {
     localStorage.setItem("app_mode", "guest");
@@ -25,6 +54,7 @@ function App() {
   const logout = () => {
     localStorage.removeItem("app_mode");
     setScreen("auth");
+    setCurrentUser(null);
   };
 
   return (
@@ -56,6 +86,29 @@ function App() {
           >
             ⟵ Back to Login
           </button>
+          {/* Buton Admin – vizibil doar pentru admin */}
+          {currentUser?.role === "admin" && (
+            <button
+              // onClick={() => window.location.href = "/admin"} // asigură-te că ai React Router
+              onClick={() => navigate("/admin")}
+              style={{
+                position: "absolute",
+                bottom: 20,
+                left: 12,
+                zIndex: 2000,
+                padding: "8px 10px",
+                borderRadius: 10,
+                border: "1px solid rgba(0,0,0,0.2)",
+                background: "linear-gradient(135deg, #d32f2f, #ff5252)",
+                color: "white",
+                fontWeight: 700,
+                cursor: "pointer",
+                fontFamily: "Arial, sans-serif",
+              }}
+            >
+              Admin Panel
+            </button>
+          )}
         </>
       )}
     </div>

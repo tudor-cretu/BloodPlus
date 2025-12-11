@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@arcgis/core": "^4.34.8",
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
     "firebase": "^12.6.0",
     "firebase-admin": "^13.6.0",
     "react": "^19.2.0",

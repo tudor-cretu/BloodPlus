@@ -1,4 +1,11 @@
 import React, { useMemo, useState } from "react";
+import { auth, db } from "./firebase/firebaseConfig.js";
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword 
+} from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
+
 
 /**
  * AuthPage.jsx
@@ -17,6 +24,7 @@ export default function AuthPage({ onContinueAsGuest, onAuthSuccess }) {
     password: "",
     confirmPassword: "",
     name: "",
+    blood_group: "",
     agree: false,
   });
 
@@ -35,6 +43,7 @@ export default function AuthPage({ onContinueAsGuest, onAuthSuccess }) {
       if (!form.name.trim()) e.name = "Numele este obligatoriu.";
       if (!form.confirmPassword) e.confirmPassword = "Te rugăm să confirmi parola.";
       else if (form.confirmPassword !== pw) e.confirmPassword = "Parolele nu coincid.";
+      if (!form.blood_group) e.blood_group = "Trebuie să selectezi grupa sanguină.";
       if (!form.agree) e.agree = "Trebuie să accepți termenii și condițiile.";
     }
 
@@ -54,13 +63,29 @@ export default function AuthPage({ onContinueAsGuest, onAuthSuccess }) {
 
     setBusy(true);
     try {
-      // TODO: hook into auth (Firebase / API)
-      // Example:
-      // if (mode === "login") await signIn(form.email, form.password)
-      // else await register(form.name, form.email, form.password)
+      if (mode === "login") {
+        // LOGIN
+        await signInWithEmailAndPassword(auth, form.email, form.password);
 
-      // frontend only 
+      } else {
+        // REGISTER
+        const res = await createUserWithEmailAndPassword(auth, form.email, form.password);
+        const uid = res.user.uid;
+
+        await setDoc(doc(db, "users", uid), {
+          name: form.name,
+          email: form.email,
+          role: "donor",  // oricine se înregistrează devine user normal
+          blood_group: form.blood_group,
+          createdAt: Date.now()
+        });
+      }
+
+      // frontend only
       if (onAuthSuccess) onAuthSuccess();
+    } catch (err) {
+      console.error("Auth error:", err);
+      alert("Eroare la creare cont: " + err.message);
     } finally {
       setBusy(false);
     }
@@ -197,6 +222,32 @@ export default function AuthPage({ onContinueAsGuest, onAuthSuccess }) {
                   error={errors.confirmPassword}
                 />
               )}
+
+              {mode === "register" && (
+                <div style={{ marginBottom: 14 }}>
+                  <label style={styles.label}>Grupa sanguină</label>
+                  <select
+                    style={styles.input}
+                    value={form.blood_group}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, blood_group: e.target.value }))
+                    }
+                    required
+                  >
+                    <option value="">Selectează grupa</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                  </select>
+                  {errors.blood_group && <div style={styles.error}>{errors.blood_group}</div>}
+                </div>
+              )}
+
 
               {mode === "register" && (
                 <div style={{ marginBottom: 14 }}>

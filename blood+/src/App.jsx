@@ -66,7 +66,7 @@ function App() {
         />
       ) : (
         <>
-          <MapComponent />
+          <MapComponent currentUser={currentUser} />
 
           {/* Mic buton de "logout" pentru test (opțional) */}
           <button

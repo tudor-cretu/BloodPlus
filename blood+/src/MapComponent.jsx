@@ -20,11 +20,13 @@ import "@arcgis/core/assets/esri/themes/light/main.css";
 import { getDocs } from "firebase/firestore";
 import { centersCollection, bloodStockCollection } from "./firebase/firebaseService";
 
-const MapComponent = () => {
+const MapComponent = ({ currentUser }) => {
   const mapDiv = useRef(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [searchLocation, setSearchLocation] = useState(null);
   const [maxDistance, setMaxDistance] = useState(50); // distanță max implicită: 50 km
+  const [selectedBloodGroup, setSelectedBloodGroup] = useState(""); // filtru grupă sanguină
+  const [stockThreshold, setStockThreshold] = useState(10); // prag de stoc implicit: 10
 
   // Stocăm centrele într-un ref pentru a fi accesibile instantaneu în funcțiile hărții
   const centersDataRef = useRef([]);
@@ -448,47 +450,65 @@ const MapComponent = () => {
     };
   }, []);
 
-  // Filter centers by distance when maxDistance or searchLocation changes
+  // Filter centers by distance and blood group when filters change
   useEffect(() => {
-    if (!centersLayerRef.current || !searchLocation) {
-      // Reset filter if no search location
-      if (centersLayerRef.current) {
-        centersLayerRef.current.definitionExpression = "1=1";
-      }
+    if (!centersLayerRef.current) {
+      return;
+    }
+
+    // Reset filter if no search location and no blood group filter
+    if (!searchLocation && !selectedBloodGroup) {
+      centersLayerRef.current.definitionExpression = "1=1";
       return;
     }
 
     const validObjectIDs = [];
     centersDataRef.current.forEach((center, idx) => {
-      const centerGeo = new Point({
-        latitude: Number(center.latitude),
-        longitude: Number(center.longitude),
-        spatialReference: { wkid: 4326 }
-      });
+      let passesDistanceFilter = true;
+      let passesBloodGroupFilter = true;
 
-      let centerProjected = centerGeo;
-      if (
-        searchLocation.spatialReference.isWebMercator &&
-        !centerGeo.spatialReference.isWebMercator
-      ) {
-        centerProjected = webMercatorUtils.geographicToWebMercator(centerGeo);
+      // Check distance filter (only if searchLocation exists)
+      if (searchLocation) {
+        const centerGeo = new Point({
+          latitude: Number(center.latitude),
+          longitude: Number(center.longitude),
+          spatialReference: { wkid: 4326 }
+        });
+
+        let centerProjected = centerGeo;
+        if (
+          searchLocation.spatialReference.isWebMercator &&
+          !centerGeo.spatialReference.isWebMercator
+        ) {
+          centerProjected = webMercatorUtils.geographicToWebMercator(centerGeo);
+        }
+
+        const dist = geometryEngine.distance(searchLocation, centerProjected, "kilometers");
+        passesDistanceFilter = dist <= maxDistance;
       }
 
-      const dist = geometryEngine.distance(searchLocation, centerProjected, "kilometers");
+      // Check blood group filter (only if selectedBloodGroup exists)
+      if (selectedBloodGroup) {
+        const bloodStock = center.bloodStock || [];
+        const stockItem = bloodStock.find(s => s.blood_group === selectedBloodGroup);
+        const quantity = stockItem ? stockItem.quantity : 0;
+        passesBloodGroupFilter = quantity < stockThreshold; // Show only centers with stock < threshold
+      }
 
-      if (dist <= maxDistance) {
+      // Center must pass both filters
+      if (passesDistanceFilter && passesBloodGroupFilter) {
         validObjectIDs.push(idx + 1); // ObjectID starts at 1
       }
     });
 
     if (validObjectIDs.length > 0) {
       centersLayerRef.current.definitionExpression = `ObjectID IN (${validObjectIDs.join(",")})`;
-      console.log(`🔍 Filtered to ${validObjectIDs.length} centers within ${maxDistance} km`);
+      console.log(`🔍 Filtered to ${validObjectIDs.length} centers`);
     } else {
       centersLayerRef.current.definitionExpression = "1=0"; // show nothing
-      console.log(`🔍 No centers within ${maxDistance} km`);
+      console.log(`🔍 No centers match the filters`);
     }
-  }, [maxDistance, searchLocation]);
+  }, [maxDistance, searchLocation, selectedBloodGroup, stockThreshold]);
 
   return (
     <div style={{ position: "relative", height: "100vh", width: "100%" }}>
@@ -634,13 +654,13 @@ const MapComponent = () => {
         </button>
       )}
 
-      {/* Distance Filter Dropdown */}
-      {searchLocation && (
+      {/* Distance Filter Dropdown - Only for authenticated users */}
+      {searchLocation && currentUser && (
         <div style={{
           position: "absolute",
           top: "90px",
           right: "15px",
-          width: "215px",
+          width: "240px",
           backgroundColor: "#f3f3f3",
           border: "1px solid rgba(0, 0, 0, 0.3)",
           borderRadius: "0px",
@@ -665,7 +685,7 @@ const MapComponent = () => {
             onChange={(e) => setMaxDistance(Number(e.target.value))}
             style={{
               width: "100%",
-              padding: "6px 8px",
+              // padding: "1px 8px",
               border: "1px solid rgba(0, 0, 0, 0.3)",
               borderRadius: "0px",
               backgroundColor: "#ffffff",
@@ -673,7 +693,9 @@ const MapComponent = () => {
               fontFamily: "'Avenir Next', Arial, sans-serif",
               color: "#323232",
               cursor: "pointer",
-              outline: "none"
+              outline: "none",
+              // height: "36px"
+              textAlign: "center"
             }}
           >
             <option value={1}>1 km</option>
@@ -683,6 +705,93 @@ const MapComponent = () => {
             <option value={20}>20 km</option>
             <option value={50}>50 km</option>
           </select>
+        </div>
+      )}
+
+      {/* Blood Group Filter - Only for authenticated users */}
+      {currentUser && (
+        <div style={{
+          position: "absolute",
+          top: "420px", 
+          right: "15px",
+          width: "240px",
+          backgroundColor: "#f3f3f3",
+          border: "1px solid rgba(0, 0, 0, 0.3)",
+          borderRadius: "0px",
+          padding: "12px",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+          zIndex: 1000,
+          fontFamily: "'Avenir Next', Arial, sans-serif",
+          fontSize: "14px",
+          color: "#323232"
+        }}>
+          <label style={{
+            display: "block",
+            marginBottom: "8px",
+            fontSize: "14px",
+            fontWeight: 500,
+            color: "#323232"
+          }}>
+            Filtrare după grupă sanguină
+          </label>
+          <select
+            value={selectedBloodGroup}
+            onChange={(e) => setSelectedBloodGroup(e.target.value)}
+            style={{
+              width: "100%",
+              border: "1px solid rgba(0, 0, 0, 0.3)",
+              borderRadius: "0px",
+              backgroundColor: "#ffffff",
+              fontSize: "14px",
+              fontFamily: "'Avenir Next', Arial, sans-serif",
+              color: "#323232",
+              cursor: "pointer",
+              outline: "none",
+              textAlign: "center",
+              marginBottom: "12px"
+            }}
+          >
+            <option value="">Toate</option>
+            <option value="0-">0-</option>
+            <option value="0+">0+</option>
+            <option value="A-">A-</option>
+            <option value="A+">A+</option>
+            <option value="B-">B-</option>
+            <option value="B+">B+</option>
+            <option value="AB-">AB-</option>
+            <option value="AB+">AB+</option>
+          </select>
+
+          <label style={{
+            display: "block",
+            marginBottom: "6px",
+            fontSize: "14px",
+            fontWeight: 500,
+            color: "#323232"
+          }}>
+            Arată centre cu stoc mai mic de:
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={stockThreshold}
+            onChange={(e) => setStockThreshold(Number(e.target.value))}
+            style={{
+              width: "100%",
+              border: "1px solid rgba(0, 0, 0, 0.3)",
+              borderRadius: "0px",
+              backgroundColor: "#ffffff",
+              fontSize: "14px",
+              fontFamily: "'Avenir Next', Arial, sans-serif",
+              color: "#323232",
+              padding: "2px 8px",
+              outline: "none",
+              textAlign: "center",
+              boxSizing: "border-box"
+            }}
+            placeholder="ex: 10"
+          />
         </div>
       )}
     </div>

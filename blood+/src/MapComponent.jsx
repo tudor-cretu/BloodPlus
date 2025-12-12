@@ -634,7 +634,7 @@ const MapComponent = ({ currentUser }) => {
             right: "15px",
             width: "240px",
             height: "35px",
-            backgroundColor: "#f3f3f3",
+            backgroundColor: "#fbcfeaff",
             border: "1px solid rgba(0, 0, 0, 0.3)",
             borderRadius: "0px",
             padding: "6px 6px",
@@ -654,11 +654,116 @@ const MapComponent = ({ currentUser }) => {
         </button>
       )}
 
+      {/* Donor Recommendation Button - Only for authenticated donors with blood group */}
+      {searchLocation && currentUser && currentUser.role === "donor" && currentUser.blood_group && (
+        <button
+          onClick={async () => {
+            if (mapDiv.current?.__mapView && searchLocation) {
+              const myMapView = mapDiv.current.__mapView;
+              const routeLayer = mapDiv.current.__routeLayer;
+
+              try {
+                const centers = centersDataRef.current;
+                if (centers.length === 0) {
+                  alert("Centrele se încarcă...");
+                  return;
+                }
+
+                const userBloodGroup = currentUser.blood_group;
+                let bestCenter = null;
+                let bestScore = -Infinity;
+
+                // Calculate score for each center based on:
+                // 1. Stock level for user's blood group (lower is better - more urgent need)
+                // 2. Distance (closer is better)
+                centers.forEach((center) => {
+                  const centerGeo = new Point({
+                    latitude: Number(center.latitude),
+                    longitude: Number(center.longitude)
+                  });
+
+                  let centerProjected = centerGeo;
+                  if (
+                    searchLocation.spatialReference.isWebMercator &&
+                    !centerGeo.spatialReference.isWebMercator
+                  ) {
+                    centerProjected = webMercatorUtils.geographicToWebMercator(centerGeo);
+                  }
+
+                  const distance = geometryEngine.distance(searchLocation, centerProjected, "kilometers");
+
+                  // Find stock for user's blood group
+                  const bloodStock = center.bloodStock || [];
+                  const stockItem = bloodStock.find(s => s.blood_group === userBloodGroup);
+                  const quantity = stockItem ? stockItem.quantity : 0;
+
+                  // Scoring algorithm:
+                  // - Lower stock = higher priority (inverted)
+                  // - Closer distance = higher priority (inverted)
+                  // Weight: stock urgency (70%) + distance (30%)
+                  const stockScore = Math.max(0, 30 - quantity); // Max score when stock is 0
+                  const distanceScore = Math.max(0, 50 - distance); // Max score when very close
+                  const totalScore = (stockScore * 0.7) + (distanceScore * 0.3);
+
+                  if (totalScore > bestScore) {
+                    bestScore = totalScore;
+                    bestCenter = center;
+                  }
+                });
+
+                if (bestCenter) {
+                  const bloodStock = bestCenter.bloodStock || [];
+                  const stockItem = bloodStock.find(s => s.blood_group === userBloodGroup);
+                  const quantity = stockItem ? stockItem.quantity : 0;
+
+                  console.log(`🎯 Recommended center: ${bestCenter.name} (Stock ${userBloodGroup}: ${quantity} units)`);
+
+                  // Perform routing to recommended center
+                  const performRouting = myMapView.__performRouting || mapDiv.current.__performRouting;
+                  if (performRouting) {
+                    await performRouting(searchLocation, bestCenter);
+                  }
+
+                  // Show recommendation info
+                  alert(`Recomandare:\n\n${bestCenter.name}\n\nStoc ${userBloodGroup}: ${quantity} unități\n${quantity < 10 ? '⚠️ Stoc critic - donația ta este urgent necesară!' : quantity < 20 ? '📊 Stoc scăzut - donația ta este necesară' : '✅ Stoc adecvat'}`);
+                }
+              } catch (error) {
+                console.error("❌ Recommendation error:", error);
+              }
+            }
+          }}
+          style={{
+            position: "absolute",
+            top: "90px",
+            right: "15px",
+            width: "240px",
+            height: "45px",
+            backgroundColor: "#acf9aeff",
+            border: "1px solid rgba(0, 0, 0, 0.3)",
+            borderRadius: "0px",
+            padding: "6px 6px",
+            fontSize: "14px",
+            fontFamily: "'Avenir Next', Arial, sans-serif",
+            color: "#323232",
+            fontWeight: "600",
+            cursor: "pointer",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            gap: "2px"
+          }}
+        >
+          <span>⭐</span>
+          Recomandare centru pentru grupa ta ({currentUser.blood_group})
+        </button>
+      )}
+
       {/* Distance Filter Dropdown - Only for authenticated users */}
       {searchLocation && currentUser && (
         <div style={{
           position: "absolute",
-          top: "90px",
+          top: currentUser.role === "donor" && currentUser.blood_group ? "140px" : "90px", // Adjust if recommendation button exists
           right: "15px",
           width: "240px",
           backgroundColor: "#f3f3f3",
@@ -712,7 +817,7 @@ const MapComponent = ({ currentUser }) => {
       {currentUser && (
         <div style={{
           position: "absolute",
-          top: "420px", 
+          top: "415px", 
           right: "15px",
           width: "240px",
           backgroundColor: "#f3f3f3",

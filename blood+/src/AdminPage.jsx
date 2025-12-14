@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase/firebaseConfig.js";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -131,7 +131,9 @@ function CenterEditor({ center }) {
 
   const handleStockChange = (stockId) => (e) => {
     const updated = form.blood_stock.map((s) =>
-      s.stock_id === stockId ? { ...s, quantity: Number(e.target.value) } : s
+      s.id === stockId
+        ? { ...s, quantity: Number(e.target.value) }
+        : s
     );
     setForm({ ...form, blood_stock: updated });
   };
@@ -168,6 +170,42 @@ function CenterEditor({ center }) {
       setBusy(false);
     }
   };
+
+  const deleteCenter = async () => {
+    const confirmDelete = window.confirm(
+      `Sigur vrei să ștergi centrul "${center.name}"?\nAceastă acțiune este definitivă.`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      setBusy(true);
+
+      // 1. Șterge subcolecția blood_stock
+      const stockSnap = await getDocs(
+        collection(db, "centers", center.id, "blood_stock")
+      );
+
+      for (let docu of stockSnap.docs) {
+        await deleteDoc(doc(db, "centers", center.id, "blood_stock", docu.id));
+      }
+
+      // 2. Șterge centrul
+      await deleteDoc(doc(db, "centers", center.id));
+
+      alert("Centrul a fost șters!");
+
+      // 3. Refresh simplu
+      window.location.reload();
+
+    } catch (err) {
+      console.error(err);
+      alert("Eroare la ștergere.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
 
   return (
     <div
@@ -233,7 +271,7 @@ function CenterEditor({ center }) {
 
           {form.blood_stock.map((item) => (
             <div
-              key={item.stock_id}
+              key={item.id}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -245,7 +283,7 @@ function CenterEditor({ center }) {
               <input
                 type="number"
                 value={item.quantity}
-                onChange={handleStockChange(item.stock_id)}
+                onChange={handleStockChange(item.id)}
                 style={{
                   padding: 8,
                   width: 100,
@@ -272,6 +310,25 @@ function CenterEditor({ center }) {
             }}
           >
             {busy ? "Se salvează..." : "Salvează modificări"}
+          </button>
+          <button
+            type="button"
+            onClick={deleteCenter}
+            disabled={busy}
+            style={{
+              marginTop: 10,
+              width: "100%",
+              padding: "12px",
+              background: "#dc3545",
+              color: "white",
+              border: "none",
+              borderRadius: 6,
+              fontSize: 16,
+              cursor: busy ? "not-allowed" : "pointer",
+              fontWeight: 600,
+            }}
+          >
+            Șterge centrul
           </button>
         </form>
       )}

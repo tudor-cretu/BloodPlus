@@ -84,6 +84,106 @@ const Centers = [
       { stock_id: "bg8", blood_group: "0-", quantity: 1 },
     ]
   }
+  // {
+  //   center_id: "5",
+  //   name: "Centrul de Transfuzie Sanguină ''Col.Prof.Dr. Nicolae Nestorescu''",
+  //   address: "Calea Plevnei 132a, 060011, Bucuresti, Romania",
+  //   latitude: 44.442205,
+  //   longitude: 26.073346,
+  //   contact_phone: "+40 21 319 3051",
+  //   contact_email: "UM_02379_Bucuresti@mapn.ro",
+  //   program: "Luni- Vineri 07:00 - 15:00",
+  //   stock: [
+  //     { stock_id: "bg1", blood_group: "A+", quantity: 30 },
+  //     { stock_id: "bg2", blood_group: "A-", quantity: 20 },
+  //     { stock_id: "bg3", blood_group: "B+", quantity: 0 },
+  //     { stock_id: "bg4", blood_group: "B-", quantity: 1 },
+  //     { stock_id: "bg5", blood_group: "AB+", quantity: 10 },
+  //     { stock_id: "bg6", blood_group: "AB-", quantity: 5 },
+  //     { stock_id: "bg7", blood_group: "0+", quantity: 9 },
+  //     { stock_id: "bg8", blood_group: "0-", quantity: 1 },
+  //   ]
+  // },
+  // {
+  //   center_id: "6",
+  //   name: "Spitalul Clinic de Urgență Bagdasar - Arseni",
+  //   address: "Șoseaua Berceni nr. 12, Sector 4, cod 041915, București",
+  //   latitude: 44.384324,
+  //   longitude: 26.130279,
+  //   contact_phone: "+4021 334 73 50",
+  //   contact_email: "directie@bagdasar-arseni.ro",
+  //   program: "L-V 08:00-13:00",
+  //   stock: [
+  //     { stock_id: "bg1", blood_group: "A+", quantity: 30 },
+  //     { stock_id: "bg2", blood_group: "A-", quantity: 20 },
+  //     { stock_id: "bg3", blood_group: "B+", quantity: 0 },
+  //     { stock_id: "bg4", blood_group: "B-", quantity: 1 },
+  //     { stock_id: "bg5", blood_group: "AB+", quantity: 10 },
+  //     { stock_id: "bg6", blood_group: "AB-", quantity: 5 },
+  //     { stock_id: "bg7", blood_group: "0+", quantity: 9 },
+  //     { stock_id: "bg8", blood_group: "0-", quantity: 1 },
+  //   ]
+  // },
+  // {
+  //   center_id: "7",
+  //   name: "Spitalul de Urgență ''Prof. Dr. Dimitrie Gerota''",
+  //   address: "Str. Vasile Vasilievici Stroescu nr. 29-31, Sector 2, Bucuresti",
+  //   latitude: 44.44045868834815,
+  //   longitude: 26.12350107858168,
+  //   contact_phone: "(021) 303.70.80",
+  //   contact_email: "dspital.gerota@mai.gov.ro",
+  //   program: "L-V 08:00-13:00",
+  //   stock: [
+  //     { stock_id: "bg1", blood_group: "A+", quantity: 30 },
+  //     { stock_id: "bg2", blood_group: "A-", quantity: 20 },
+  //     { stock_id: "bg3", blood_group: "B+", quantity: 0 },
+  //     { stock_id: "bg4", blood_group: "B-", quantity: 1 },
+  //     { stock_id: "bg5", blood_group: "AB+", quantity: 10 },
+  //     { stock_id: "bg6", blood_group: "AB-", quantity: 5 },
+  //     { stock_id: "bg7", blood_group: "0+", quantity: 9 },
+  //     { stock_id: "bg8", blood_group: "0-", quantity: 1 },
+  //   ]
+  // },
+  // {
+  //   center_id: "8",
+  //   name: "Spitalul Universitar de Urgenţă Elias",
+  //   address: "Bd. Marasti nr. 17, Sector 1, Bucuresti",
+  //   latitude: 44.466074,
+  //   longitude: 26.073602,
+  //   contact_phone: "+40 21 316 1600",
+  //   contact_email: "contact@spitalul-elias.ro",
+  //   program: "L-V 08:00-13:00",
+  //   stock: [
+  //     { stock_id: "bg1", blood_group: "A+", quantity: 30 },
+  //     { stock_id: "bg2", blood_group: "A-", quantity: 20 },
+  //     { stock_id: "bg3", blood_group: "B+", quantity: 0 },
+  //     { stock_id: "bg4", blood_group: "B-", quantity: 1 },
+  //     { stock_id: "bg5", blood_group: "AB+", quantity: 10 },
+  //     { stock_id: "bg6", blood_group: "AB-", quantity: 5 },
+  //     { stock_id: "bg7", blood_group: "0+", quantity: 9 },
+  //     { stock_id: "bg8", blood_group: "0-", quantity: 1 },
+  //   ]
+  // },
+  // {
+  //   center_id: "9",
+  //   name: "Spitalul Clinic de Urgenta Chirurgie Plastica, Reparatorie si Arsuri",
+  //   address: "Griviţei, Nr 218 218 010011 Bucureşti",
+  //   latitude: 44.464063,
+  //   longitude: 26.05598,
+  //   contact_phone: "+40 21 316 1600",
+  //   contact_email: "secretariat@arsuri.ro",
+  //   program: "L-V 08:00-13:00",
+  //   stock: [
+  //     { stock_id: "bg1", blood_group: "A+", quantity: 30 },
+  //     { stock_id: "bg2", blood_group: "A-", quantity: 20 },
+  //     { stock_id: "bg3", blood_group: "B+", quantity: 0 },
+  //     { stock_id: "bg4", blood_group: "B-", quantity: 1 },
+  //     { stock_id: "bg5", blood_group: "AB+", quantity: 10 },
+  //     { stock_id: "bg6", blood_group: "AB-", quantity: 5 },
+  //     { stock_id: "bg7", blood_group: "0+", quantity: 9 },
+  //     { stock_id: "bg8", blood_group: "0-", quantity: 1 },
+  //   ]
+  // }
 ];
 
 export const seedCenters = async () => {

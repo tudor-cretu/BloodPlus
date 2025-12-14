@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { db } from "./firebase/firebaseConfig";
-import { collection, addDoc, doc, setDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import { getNextCenterId } from "./utils/getNextCenterId";
 
 // Stilul pentru input/label, simplificat și reutilizat
 const inputGroupStyle = {
@@ -71,8 +72,9 @@ function AddCenterPage() {
     }
 
     try {
+      const newCenterId = await getNextCenterId();
       // 1. Adaugă centrul principal
-      const newCenterRef = await addDoc(collection(db, "centers"), {
+      await setDoc(doc(db, "centers", newCenterId), {
         name: form.name,
         address: form.address,
         latitude: Number(form.latitude),
@@ -84,25 +86,18 @@ function AddCenterPage() {
 
       // 2. Inițializează subcolecția de stoc de sânge
       const bloodGroups = [
-        { blood_group: "0-", quantity: 0 },
-        { blood_group: "0+", quantity: 0 },
-        { blood_group: "A-", quantity: 0 },
-        { blood_group: "A+", quantity: 0 },
-        { blood_group: "B-", quantity: 0 },
-        { blood_group: "B+", quantity: 0 },
-        { blood_group: "AB-", quantity: 0 },
-        { blood_group: "AB+", quantity: 0 },
+        "A+", "A-", "B+", "B-", "AB+", "AB-", "0+", "0-"
       ];
 
-      for (let bg of bloodGroups) {
-        const stockRef = doc(
-          collection(db, "centers", newCenterRef.id, "blood_stock")
+      for (let i = 0; i < bloodGroups.length; i++) {
+        await setDoc(
+          doc(db, "centers", newCenterId, "blood_stock", `bg${i + 1}`),
+          {
+            stock_id: `bg${i + 1}`,
+            blood_group: bloodGroups[i],
+            quantity: 0
+          }
         );
-        await setDoc(stockRef, {
-          blood_group: bg.blood_group,
-          quantity: bg.quantity,
-          center_id: newCenterRef.id,
-        });
       }
 
       alert("Centru adăugat cu succes!");

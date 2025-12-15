@@ -32,6 +32,49 @@ const MapComponent = ({ currentUser }) => {
   const centersDataRef = useRef([]);
   const centersLayerRef = useRef(null);
 
+  // Function to calculate critical level based on blood stock
+  const calculateCriticalLevel = (bloodStock) => {
+    if (!bloodStock || bloodStock.length === 0) {
+      return 'critical'; // No data = critical
+    }
+
+    let hasCritical = false;
+    let hasWarning = false;
+
+    bloodStock.forEach(stock => {
+      const quantity = stock.quantity || 0;
+      if (quantity < 1) {
+        hasCritical = true;
+      } else if (quantity < 10) {
+        hasWarning = true;
+      }
+    });
+
+    if (hasCritical) return 'critical';
+    if (hasWarning) return 'warning';
+    return 'normal';
+  };
+
+  // Function to get color based on critical level
+  const getCriticalLevelColor = (level) => {
+    switch (level) {
+      case 'critical': return [211, 47, 47]; // Red
+      case 'warning': return [255, 152, 0]; // Orange
+      case 'normal': return [56, 142, 60]; // Green
+      default: return [128, 128, 128]; // Gray
+    }
+  };
+
+  // Function to get critical level text and emoji
+  const getCriticalLevelInfo = (level) => {
+    switch (level) {
+      case 'critical': return { text: 'CRITIC', emoji: '🚨', color: '#d32f2f' };
+      case 'warning': return { text: 'ATENȚIE', emoji: '⚠️', color: '#f57c00' };
+      case 'normal': return { text: 'NORMAL', emoji: '✅', color: '#388e3c' };
+      default: return { text: 'NECUNOSCUT', emoji: '❓', color: '#999' };
+    }
+  };
+
   useEffect(() => {
     // 1. Configurare API Key
     const apiKey = import.meta.env.VITE_ARCGIS_API_KEY;
@@ -333,6 +376,10 @@ const MapComponent = ({ currentUser }) => {
             const program = center.program || "—";
             const address = center.address || "—";
             
+            // Calculate critical level for this center
+            const criticalLevel = calculateCriticalLevel(center.bloodStock);
+            const criticalInfo = getCriticalLevelInfo(criticalLevel);
+            
             // Format blood stock for display
             const bloodStockHTML = center.bloodStock && center.bloodStock.length > 0
               ? (() => {
@@ -370,7 +417,11 @@ const MapComponent = ({ currentUser }) => {
                 program: program,
                 latitude: parseFloat(center.latitude),
                 longitude: parseFloat(center.longitude),
-                bloodStockHTML: bloodStockHTML
+                bloodStockHTML: bloodStockHTML,
+                criticalLevel: criticalLevel,
+                criticalText: criticalInfo.text,
+                criticalEmoji: criticalInfo.emoji,
+                criticalColor: criticalInfo.color
               }
             });
           });
@@ -388,18 +439,55 @@ const MapComponent = ({ currentUser }) => {
               { name: "program", alias: "Program", type: "string" },
               { name: "latitude", alias: "Latitude", type: "double" },
               { name: "longitude", alias: "Longitude", type: "double" },
-              { name: "bloodStockHTML", alias: "Blood Stock", type: "string" }
+              { name: "bloodStockHTML", alias: "Blood Stock", type: "string" },
+              { name: "criticalLevel", alias: "Critical Level", type: "string" },
+              { name: "criticalText", alias: "Critical Text", type: "string" },
+              { name: "criticalEmoji", alias: "Critical Emoji", type: "string" },
+              { name: "criticalColor", alias: "Critical Color", type: "string" }
             ],
             geometryType: "point",
             spatialReference: { wkid: 3857 }, // WebMercator
             renderer: {
-              type: "simple",
-              symbol: {
+              type: "unique-value",
+              field: "criticalLevel",
+              defaultSymbol: {
                 type: "simple-marker",
-                color: [226, 6, 19],
+                color: [128, 128, 128], // Gray for unknown
                 outline: { color: [0, 0, 0, 1], width: 3 },
-                size: "18px"
-              }
+                size: "20px"
+              },
+              uniqueValueInfos: [
+                {
+                  value: "critical",
+                  symbol: {
+                    type: "simple-marker",
+                    color: [211, 47, 47], // Red
+                    outline: { color: [139, 0, 0, 1], width: 4 },
+                    size: "22px"
+                  },
+                  label: "🚨 Nivel Critic"
+                },
+                {
+                  value: "warning",
+                  symbol: {
+                    type: "simple-marker",
+                    color: [255, 152, 0], // Orange
+                    outline: { color: [230, 81, 0, 1], width: 3 },
+                    size: "20px"
+                  },
+                  label: "⚠️ Atenție"
+                },
+                {
+                  value: "normal",
+                  symbol: {
+                    type: "simple-marker",
+                    color: [56, 142, 60], // Green
+                    outline: { color: [27, 94, 32, 1], width: 3 },
+                    size: "18px"
+                  },
+                  label: "✅ Normal"
+                }
+              ]
             },
             popupTemplate: {
               title: "{name}",
@@ -899,6 +987,67 @@ const MapComponent = ({ currentUser }) => {
           />
         </div>
       )}
+
+      {/* Critical Level Legend */}
+      <div style={{
+        position: "absolute",
+        bottom: "20px",
+        left: "10px",
+        backgroundColor: "rgba(255, 255, 255, 0.95)",
+        border: "1px solid rgba(0, 0, 0, 0.3)",
+        borderRadius: "8px",
+        padding: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+        zIndex: 1000,
+        fontFamily: "'Avenir Next', Arial, sans-serif",
+        fontSize: "12px",
+        minWidth: "80px"
+      }}>
+        <div style={{
+          fontSize: "14px",
+          fontWeight: "600",
+          marginBottom: "8px",
+          textAlign: "left",
+          color: "#333"
+        }}>
+          Legenda nivel stoc 
+        </div>
+        
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{
+              width: "16px",
+              height: "16px",
+              borderRadius: "50%",
+              backgroundColor: "#d32f2f",
+              border: "2px solid #8b0000"
+            }}></div>
+            <span> Critic (&lt;0)</span>
+          </div>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{
+              width: "16px",
+              height: "16px",
+              borderRadius: "50%",
+              backgroundColor: "#ff9800",
+              border: "2px solid #e65100"
+            }}></div>
+            <span>Mediu (&lt;10)</span>
+          </div>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{
+              width: "16px",
+              height: "16px",
+              borderRadius: "50%",
+              backgroundColor: "#388e3c",
+              border: "2px solid #1b5e20"
+            }}></div>
+            <span>Normal (≥10)</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

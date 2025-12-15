@@ -93,8 +93,8 @@ function App() {
               onClick={() => navigate("/admin")}
               style={{
                 position: "absolute",
-                bottom: 20,
-                left: 12,
+                bottom: 145,
+                left: 22,
                 zIndex: 2000,
                 padding: "8px 10px",
                 borderRadius: 10,
@@ -115,8 +115,8 @@ function App() {
             onClick={() => navigate("/account")}
             style={{
               position: "absolute",
-              bottom: 20,
-              left: 12,
+              bottom: 145,
+              left: 22,
               zIndex: 2000,
               padding: "8px 10px",
               borderRadius: 10,

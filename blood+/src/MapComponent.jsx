@@ -31,6 +31,8 @@ const MapComponent = ({ currentUser }) => {
   // Stocăm centrele într-un ref pentru a fi accesibile instantaneu în funcțiile hărții
   const centersDataRef = useRef([]);
   const centersLayerRef = useRef(null);
+  const heatmapLayerRef = useRef(null);
+  const criticalLayerRef = useRef(null);
 
   // Function to calculate critical level based on blood stock
   const calculateCriticalLevel = (bloodStock) => {
@@ -521,6 +523,95 @@ const MapComponent = ({ currentUser }) => {
 
           map.add(centersLayer);
           centersLayerRef.current = centersLayer; // Store reference for filtering
+          // Build initial heatmap layer (will be updated when currentUser is available)
+          try {
+            const heatFeatures = dataList.map((center, idx) => {
+              const geo = new Point({
+                latitude: parseFloat(center.latitude),
+                longitude: parseFloat(center.longitude),
+                spatialReference: { wkid: 4326 }
+              });
+              const geoWebMercator = webMercatorUtils.geographicToWebMercator(geo);
+
+              return new Graphic({
+                geometry: geoWebMercator,
+                attributes: {
+                  ObjectID: idx + 1,
+                  heatWeight: 0 // initial zero, will be recalculated for logged-in users
+                }
+              });
+            });
+
+            const heatmapLayer = new FeatureLayer({
+              source: heatFeatures,
+              objectIdField: "ObjectID",
+              fields: [
+                { name: "ObjectID", alias: "ObjectID", type: "oid" },
+                { name: "heatWeight", alias: "Heat Weight", type: "double" }
+              ],
+              geometryType: "point",
+              spatialReference: { wkid: 3857 },
+              renderer: {
+                type: "heatmap",
+                field: "heatWeight",
+                colorStops: [
+                  { ratio: 0, color: "rgba(0,0,0,0)" },
+                  { ratio: 0.2, color: "rgba(255,235,59,0.6)" },
+                  { ratio: 0.5, color: "rgba(255,152,0,0.75)" },
+                  { ratio: 1, color: "rgba(211,47,47,0.95)" }
+                ],
+                maxPixelIntensity: 100,
+                minPixelIntensity: 0
+              },
+              visible: !!currentUser,
+              opacity: 0.75,
+              popupEnabled: false
+            });
+
+            map.add(heatmapLayer);
+            heatmapLayerRef.current = heatmapLayer;
+            console.log("✅ Heatmap layer added (initial, visibility depends on user).");
+          } catch (hmErr) {
+            console.error("⚠️ Heatmap init error:", hmErr);
+          }
+          // Create a persistent critical-level graphics layer (visual notification)
+          try {
+            const criticalGraphics = [];
+            dataList.forEach((center, idx) => {
+              const criticalLevel = calculateCriticalLevel(center.bloodStock);
+              if (criticalLevel === 'critical') {
+                const geo = new Point({
+                  latitude: parseFloat(center.latitude),
+                  longitude: parseFloat(center.longitude),
+                  spatialReference: { wkid: 4326 }
+                });
+                const geoWebMercator = webMercatorUtils.geographicToWebMercator(geo);
+
+                // Large translucent halo graphic to notify critical need
+                criticalGraphics.push(new Graphic({
+                  geometry: geoWebMercator,
+                  attributes: { ObjectID: idx + 1 },
+                  symbol: {
+                    type: "simple-marker",
+                    style: "circle",
+                    color: [211, 47, 47, 0.2],
+                    size: "36px",
+                    outline: { color: [211, 47, 47, 0.6], width: 3 }
+                  }
+                }));
+              }
+            });
+
+            const criticalLayer = new GraphicsLayer({ opacity: 1 });
+            if (criticalGraphics.length > 0) criticalLayer.addMany(criticalGraphics);
+
+            // Add critical layer beneath other layers so halos appear under markers
+            map.add(criticalLayer, 0);
+            criticalLayerRef.current = criticalLayer;
+            console.log(`🔴 Critical notification layer added with ${criticalGraphics.length} items.`);
+          } catch (critErr) {
+            console.error("⚠️ Critical layer init error:", critErr);
+          }
           console.log(`✅ FeatureLayer with ${features.length} centers added to map.`);
         } catch (error) {
           console.error("Eroare Firebase:", error);
@@ -597,6 +688,86 @@ const MapComponent = ({ currentUser }) => {
       console.log(`🔍 No centers match the filters`);
     }
   }, [maxDistance, searchLocation, selectedBloodGroup, stockThreshold]);
+
+  // Update/create heatmap layer when currentUser changes (only visible for logged-in users)
+  useEffect(() => {
+    try {
+      if (!mapDiv.current) return;
+      const mapViewElem = mapDiv.current;
+      const view = mapViewElem.__mapView;
+      if (!view) return;
+      const map = view.map;
+
+      // Remove existing heatmap layer if present
+      if (heatmapLayerRef.current) {
+        try { map.remove(heatmapLayerRef.current); } catch (e) { /* ignore */ }
+        heatmapLayerRef.current = null;
+      }
+
+      // Only create/show heatmap for authenticated users
+      if (!currentUser) return;
+
+      const userBloodGroup = currentUser.blood_group;
+
+      const heatFeatures = centersDataRef.current.map((center, idx) => {
+        const geo = new Point({
+          latitude: parseFloat(center.latitude),
+          longitude: parseFloat(center.longitude),
+          spatialReference: { wkid: 4326 }
+        });
+        const geoWebMercator = webMercatorUtils.geographicToWebMercator(geo);
+
+        let quantity = 0;
+        if (userBloodGroup) {
+          const stockItem = (center.bloodStock || []).find(s => s.blood_group === userBloodGroup);
+          quantity = stockItem ? Number(stockItem.quantity || 0) : 0;
+        }
+
+        // Heat weight: higher when stock is lower. Cap to a small range.
+        const heatWeight = Math.max(0, 30 - quantity);
+
+        return new Graphic({
+          geometry: geoWebMercator,
+          attributes: {
+            ObjectID: idx + 1,
+            heatWeight
+          }
+        });
+      });
+
+      const newHeatmapLayer = new FeatureLayer({
+        source: heatFeatures,
+        objectIdField: "ObjectID",
+        fields: [
+          { name: "ObjectID", alias: "ObjectID", type: "oid" },
+          { name: "heatWeight", alias: "Heat Weight", type: "double" }
+        ],
+        geometryType: "point",
+        spatialReference: { wkid: 3857 },
+        renderer: {
+          type: "heatmap",
+          field: "heatWeight",
+          colorStops: [
+            { ratio: 0, color: "rgba(0,0,0,0)" },
+            { ratio: 0.2, color: "rgba(255,235,59,0.6)" },
+            { ratio: 0.5, color: "rgba(255,152,0,0.75)" },
+            { ratio: 1, color: "rgba(211,47,47,0.95)" }
+          ],
+          maxPixelIntensity: 100,
+          minPixelIntensity: 0
+        },
+        visible: true,
+        opacity: 0.75,
+        popupEnabled: false
+      });
+
+      map.add(newHeatmapLayer);
+      heatmapLayerRef.current = newHeatmapLayer;
+      console.log("✅ Heatmap recreated for authenticated user.");
+    } catch (err) {
+      console.error("⚠️ Heatmap update error:", err);
+    }
+  }, [currentUser]);
 
   return (
     <div style={{ position: "relative", height: "100vh", width: "100%" }}>
@@ -1048,6 +1219,31 @@ const MapComponent = ({ currentUser }) => {
           </div>
         </div>
       </div>
+      {/* Heatmap legend - only for logged-in users */}
+      {currentUser && (
+        <div style={{
+          position: "absolute",
+          bottom: "20px",
+          right: "10px",
+          backgroundColor: "rgba(255, 255, 255, 0.95)",
+          border: "1px solid rgba(0, 0, 0, 0.3)",
+          borderRadius: "8px",
+          padding: "10px",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          zIndex: 1000,
+          fontFamily: "'Avenir Next', Arial, sans-serif",
+          fontSize: "12px",
+          color: "#333",
+          minWidth: "160px"
+        }}>
+          <div style={{ fontSize: "13px", fontWeight: 700, marginBottom: "6px" }}>
+            Heatmap — nevoia pentru grupa ta
+          </div>
+          <div style={{ fontSize: "12px" }}>
+            Culori: galben → portocaliu → roșu indică nivelul de nevoie pentru <b>{currentUser.blood_group || 'grupa ta'}</b>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

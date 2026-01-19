@@ -73,8 +73,8 @@ function App() {
             onClick={logout}
             style={{
               position: "absolute",
-              top: 12,
-              left: 12,
+              top: 13,
+              left: 50,
               zIndex: 2000,
               padding: "8px 10px",
               borderRadius: 10,

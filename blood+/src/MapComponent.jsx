@@ -29,6 +29,7 @@ const MapComponent = ({ currentUser }) => {
   const [stockThreshold, setStockThreshold] = useState(10); // prag de stoc implicit: 10
   const [heatmapReady, setHeatmapReady] = useState(false);
   const [centersLoaded, setCentersLoaded] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(true); // toggle pentru heatmap
 
   // Stocăm centrele într-un ref pentru a fi accesibile instantaneu în funcțiile hărții
   const centersDataRef = useRef([]);
@@ -688,7 +689,8 @@ const MapComponent = ({ currentUser }) => {
 
     const heatmapLayer = heatmapLayerRef.current;
 
-    if (!currentUser || !currentUser.blood_group) {
+    // Check if user is a DONOR with blood group and wants heatmap shown
+    if (!showHeatmap || !currentUser || currentUser.role !== "donor" || !currentUser.blood_group) {
       heatmapLayer.visible = false;
       heatmapLayer.source.removeAll();
       return;
@@ -784,7 +786,7 @@ const MapComponent = ({ currentUser }) => {
       updateHeatmap();
     }
 
-  }, [currentUser, isMapLoaded, heatmapReady]);
+  }, [currentUser, isMapLoaded, heatmapReady, showHeatmap]);
 
   return (
     <div style={{ position: "relative", height: "100vh", width: "100%" }}>
@@ -1292,6 +1294,78 @@ const MapComponent = ({ currentUser }) => {
             }}
             placeholder="ex: 10"
           />
+        </div>
+      )}
+
+      {/* Heatmap Toggle Switch - Only for donors with blood group */}
+      {currentUser && currentUser.role === "donor" && currentUser.blood_group && (
+        <div style={{
+          position: "absolute",
+          top: "315px",
+          left: "22px",
+          backgroundColor: "transparent",
+          border: "1px solid rgba(0, 0, 0, 0.3)",
+          borderRadius: "8px",
+          padding: "12px",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          zIndex: 1000,
+          fontFamily: "'Avenir Next', Arial, sans-serif",
+          fontSize: "12px",
+          minWidth: "70px"
+        }}>
+          <div style={{
+            fontSize: "14px",
+            fontWeight: "600",
+            marginBottom: "10px",
+            textAlign: "left",
+            color: "#333"
+          }}>
+          Heatmap ({currentUser.blood_group})
+          </div>
+          
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px"
+          }}>
+            <div
+              onClick={() => setShowHeatmap(!showHeatmap)}
+              style={{
+                position: "relative",
+                width: "50px",
+                height: "26px",
+                left: "17px",
+                backgroundColor: showHeatmap ? "#4CAF50" : "#ccc",
+                borderRadius: "13px",
+                transition: "background-color 0.3s ease",
+                cursor: "pointer",
+                border: "2px solid rgba(0, 0, 0, 0.2)",
+                flexShrink: 0
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: "2px",
+                  left: showHeatmap ? "26px" : "2px",
+                  width: "18px",
+                  height: "18px",
+                  backgroundColor: "#ffffff",
+                  borderRadius: "50%",
+                  transition: "left 0.3s ease",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+                }}
+              />
+            </div>
+            
+            <span style={{
+              fontSize: "12px",
+              color: "#666",
+              lineHeight: "1.3"
+            }}>
+              {/* {showHeatmap ? "Activ" : "Inactiv"} */}
+            </span>
+          </div>
         </div>
       )}
 

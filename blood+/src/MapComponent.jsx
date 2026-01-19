@@ -27,6 +27,8 @@ const MapComponent = ({ currentUser }) => {
   const [maxDistance, setMaxDistance] = useState(50); // distanță max implicită: 50 km
   const [selectedBloodGroup, setSelectedBloodGroup] = useState(""); // filtru grupă sanguină
   const [stockThreshold, setStockThreshold] = useState(10); // prag de stoc implicit: 10
+  const [heatmapReady, setHeatmapReady] = useState(false);
+  const [centersLoaded, setCentersLoaded] = useState(false);
 
   // Stocăm centrele într-un ref pentru a fi accesibile instantaneu în funcțiile hărții
   const centersDataRef = useRef([]);
@@ -359,6 +361,7 @@ const MapComponent = ({ currentUser }) => {
           }
 
           centersDataRef.current = dataList;
+          setCentersLoaded(true);
 
           // Build features for FeatureLayer
           const features = dataList.map((center, idx) => {
@@ -521,6 +524,71 @@ const MapComponent = ({ currentUser }) => {
 
           map.add(centersLayer);
           centersLayerRef.current = centersLayer; // Store reference for filtering
+<<<<<<< Updated upstream
+=======
+          
+          // Create initial heatmap layer (will be updated when currentUser changes)
+          try {
+            const heatmapFeatures = dataList.map((center, idx) => {
+              const geo = new Point({
+                latitude: parseFloat(center.latitude),
+                longitude: parseFloat(center.longitude),
+                spatialReference: { wkid: 4326 }
+              });
+              const geoWebMercator = webMercatorUtils.geographicToWebMercator(geo);
+
+              return new Graphic({
+                geometry: geoWebMercator,
+                attributes: {
+                  ObjectID: idx + 1,
+                  heatValue: 50 // Default medium value initially
+                }
+              });
+            });
+
+            const heatmapLayer = new FeatureLayer({
+              source: heatmapFeatures,
+              objectIdField: "ObjectID",
+              fields: [
+                { name: "ObjectID", alias: "ObjectID", type: "oid" },
+                { name: "heatValue", alias: "Heat Value", type: "double" }
+              ],
+              geometryType: "point",
+              spatialReference: { wkid: 3857 },
+              renderer: {
+                type: "heatmap",
+                colorStops: [
+                  { ratio: 0.0, color: "rgba(0, 0, 0, 0)" },        // Transparent
+                  { ratio: 0.2, color: "rgba(76, 175, 80, 0.6)" },  // VERDE (puține puncte)
+                  { ratio: 0.4, color: "rgba(255, 235, 59, 0.7)" }, // GALBEN
+                  { ratio: 0.6, color: "rgba(255, 152, 0, 0.8)" },  // PORTOCALIU
+                  { ratio: 0.85, color: "rgba(255, 87, 34, 0.9)" }, // ROȘU-PORTOCALIU
+                  { ratio: 1.0, color: "rgba(211, 47, 47, 1.0)" }   // ROȘU (multe puncte)
+                ],
+                // With a larger radius, intensities spread out; increasing maxPixelIntensity helps keep red hotspots.
+                // referenceScale helps keep a consistent look across zoom levels.
+                maxPixelIntensity: 100,
+                minPixelIntensity: 0,
+                radius: 35,
+                blurRadius: 20,
+                referenceScale: 0 // ~1:577k (Bucharest metro-ish scale)
+              },
+              opacity: 0.85,
+              visible: true, // Initially hidden, will show only for logged users
+              popupEnabled: false,
+              blendMode: "multiply"
+            });
+
+            //map.add(heatmapLayer, 0); // Add below other layers
+            map.add(heatmapLayer);
+            setHeatmapReady(true);
+            heatmapLayerRef.current = heatmapLayer;
+            console.log("✅ Heatmap layer created (initially hidden)");
+          } catch (err) {
+            console.error("⚠️ Error creating heatmap:", err);
+          }
+
+>>>>>>> Stashed changes
           console.log(`✅ FeatureLayer with ${features.length} centers added to map.`);
         } catch (error) {
           console.error("Eroare Firebase:", error);
@@ -598,6 +666,131 @@ const MapComponent = ({ currentUser }) => {
     }
   }, [maxDistance, searchLocation, selectedBloodGroup, stockThreshold]);
 
+<<<<<<< Updated upstream
+=======
+  const getHeatValueForUser = (center, userBloodGroup) => {
+    if (!userBloodGroup) return 0;
+
+    const stock = center.bloodStock?.find(s => s.blood_group === userBloodGroup);
+    const quantity = stock ? stock.quantity : 0;
+
+    // INVERSAT: stoc mic = valoare MARE (pentru mai multe puncte)
+    if (quantity === 0)  return 100;  // MAXIM → multe puncte → roșu
+    if (quantity <= 3)   return 80;
+    if (quantity <= 5)   return 60;
+    if (quantity <= 10)  return 40;
+    if (quantity <= 20)  return 20;
+    return 5;  // MINIM → puține puncte → verde
+  };
+
+  // 5. EXEMPLU COMPLET - updateHeatmap:
+  const updateHeatmap = () => {
+    if (!heatmapLayerRef.current || centersDataRef.current.length === 0) {
+      console.warn("[HEATMAP] Nu pot actualiza");
+      return;
+    }
+
+    const heatmapLayer = heatmapLayerRef.current;
+
+    if (!currentUser || !currentUser.blood_group) {
+      heatmapLayer.visible = false;
+      heatmapLayer.source.removeAll();
+      return;
+    }
+
+    const userBloodGroup = currentUser.blood_group.trim().toUpperCase();
+
+    const bucharestIlfovBounds = {
+      minLat: 44.25,
+      maxLat: 44.65,
+      minLon: 25.85,
+      maxLon: 26.35
+    };
+
+    const updatedFeatures = [];
+
+    centersDataRef.current.forEach((center, idx) => {
+      const lat = parseFloat(center.latitude);
+      const lon = parseFloat(center.longitude);
+
+      if (isNaN(lat) || isNaN(lon)) return;
+
+      if (lat < bucharestIlfovBounds.minLat || lat > bucharestIlfovBounds.maxLat ||
+          lon < bucharestIlfovBounds.minLon || lon > bucharestIlfovBounds.maxLon) {
+        return;
+      }
+
+      const geo = new Point({ latitude: lat, longitude: lon, spatialReference: { wkid: 4326 } });
+      const geoWebMercator = webMercatorUtils.geographicToWebMercator(geo);
+
+      const heatValue = getHeatValueForUser(center, userBloodGroup);
+
+      // Multiplier: valori MARI (stoc mic) = MULTE puncte
+      const multiplier = 
+        heatValue >= 80 ? 100 :
+        heatValue >= 60 ? 70 :
+        heatValue >= 40 ? 40 :
+        heatValue >= 20 ? 20 :
+        5;
+
+      for (let i = 0; i < multiplier; i++) {
+        // Jitter mai mic pentru concentrare mai bună
+        const offsetLat = (Math.random() - 0.5) * 0.002;  // ~200m
+        const offsetLon = (Math.random() - 0.5) * 0.003;
+
+        const jitterGeo = new Point({
+          latitude: lat + offsetLat,
+          longitude: lon + offsetLon,
+          spatialReference: { wkid: 4326 }
+        });
+
+        const jitterWebMercator = webMercatorUtils.geographicToWebMercator(jitterGeo);
+        
+        updatedFeatures.push(new Graphic({
+          geometry: jitterWebMercator,
+          attributes: {
+            ObjectID: Date.now() + idx * 1000 + i,
+            heatValue: heatValue  // Nu mai e folosit de renderer, dar îl păstrăm
+          }
+        }));
+      }
+    });
+
+    console.log(`[HEATMAP] Puncte generate: ${updatedFeatures.length}`);
+
+    heatmapLayer.source.removeAll();
+
+    if (updatedFeatures.length > 0) {
+      heatmapLayer.source.addMany(updatedFeatures);
+      heatmapLayer.visible = true;
+      console.log("[HEATMAP] ACTIVAT");
+    }
+  };
+
+  // Șterge tot useEffect-ul vechi de la linia ~790 și pune DOAR:
+  useEffect(() => {
+    console.log("=== HEATMAP DEBUG ===");
+    console.log("isMapLoaded:", isMapLoaded);
+    console.log("currentUser:", currentUser);
+    console.log("currentUser?.blood_group:", currentUser?.blood_group);
+    console.log("currentUser?.role:", currentUser?.role);
+    console.log("heatmapLayerRef.current:", heatmapLayerRef.current);
+    console.log("centersDataRef.current.length:", centersDataRef.current.length);
+    console.log("====================");
+    // Wait for ALL resources to be ready
+    if (
+      isMapLoaded &&
+      heatmapLayerRef.current &&
+      centersDataRef.current.length > 0 &&
+      currentUser?.blood_group
+    ) {
+      console.log("🔥 Updating heatmap");
+      updateHeatmap();
+    }
+
+  }, [currentUser, isMapLoaded, heatmapReady]);
+
+>>>>>>> Stashed changes
   return (
     <div style={{ position: "relative", height: "100vh", width: "100%" }}>
       <div ref={mapDiv} style={{ height: "100%", width: "100%" }}></div>

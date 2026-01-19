@@ -33,6 +33,7 @@ const MapComponent = ({ currentUser }) => {
   // Stocăm centrele într-un ref pentru a fi accesibile instantaneu în funcțiile hărții
   const centersDataRef = useRef([]);
   const centersLayerRef = useRef(null);
+  const heatmapLayerRef = useRef(null);
 
   // Function to calculate critical level based on blood stock
   const calculateCriticalLevel = (bloodStock) => {
@@ -994,13 +995,132 @@ const MapComponent = ({ currentUser }) => {
                   console.log(`🎯 Recommended center: ${bestCenter.name} (Stock ${userBloodGroup}: ${quantity} units)`);
 
                   // Perform routing to recommended center
-                  const performRouting = myMapView.__performRouting || mapDiv.current.__performRouting;
-                  if (performRouting) {
-                    await performRouting(searchLocation, bestCenter);
-                  }
+                  const routeUrl = "https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
+                  const endPoint = new Point({
+                    latitude: Number(bestCenter.latitude),
+                    longitude: Number(bestCenter.longitude)
+                  });
 
-                  // Show recommendation info
-                  alert(`Recomandare:\n\n${bestCenter.name}\n\nStoc ${userBloodGroup}: ${quantity} unități\n${quantity < 10 ? '⚠️ Stoc critic - donația ta este urgent necesară!' : quantity < 20 ? '📊 Stoc scăzut - donația ta este necesară' : '✅ Stoc adecvat'}`);
+                  const routeParams = new RouteParameters({
+                    stops: new FeatureSet({
+                      features: [
+                        new Graphic({ geometry: searchLocation }),
+                        new Graphic({ geometry: endPoint })
+                      ]
+                    }),
+                    returnDirections: true
+                  });
+
+                  try {
+                    const data = await route.solve(routeUrl, routeParams);
+                    if (data.routeResults.length > 0) {
+                      const result = data.routeResults[0].route;
+                      const distanceKm = result.attributes.Total_Kilometers.toFixed(2);
+                      const timeMin = result.attributes.Total_TravelTime.toFixed(0);
+
+                      result.symbol = {
+                        type: "simple-line",
+                        color: [50, 50, 255, 0.8],
+                        width: 5
+                      };
+
+                      routeLayer.removeAll();
+                      
+                      // Re-add user pin
+                      const userGraphic = new Graphic({
+                        geometry: searchLocation,
+                        symbol: {
+                          type: "simple-marker",
+                          style: "diamond",
+                          color: "blue",
+                          size: "18px",
+                          outline: { color: "white", width: 3 }
+                        }
+                      });
+                      routeLayer.add(userGraphic);
+                      routeLayer.add(result);
+                      
+                      myMapView.goTo(result.geometry.extent.expand(1.4));
+
+                      const email = bestCenter.contact_email || "—";
+                      const phone = bestCenter.contact_phone || "—";
+                      const program = bestCenter.program || "—";
+                      const address = bestCenter.address || "—";
+
+                      // Format blood stock for display
+                      const bloodStockHTML = bestCenter.bloodStock && bestCenter.bloodStock.length > 0
+                        ? (() => {
+                            const rowOrder = ['0-', '0+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'];
+                            const stockMap = {};
+                            bestCenter.bloodStock.forEach(stock => {
+                              stockMap[stock.blood_group] = stock.quantity || 0;
+                            });
+                            
+                            const firstRow = rowOrder.slice(0, 4).map(bg => {
+                              const quantity = stockMap[bg] !== undefined ? stockMap[bg] : 0;
+                              const color = quantity === 0 ? '#d32f2f' : quantity < 10 ? '#f57c00' : '#388e3c';
+                              return `<span style="display:inline-block; margin:2px 8px 2px 0; padding:4px 8px; background-color:${color}; color:white; border-radius:4px; font-weight:500;">${bg}: ${quantity}</span>`;
+                            }).join('');
+                            
+                            const secondRow = rowOrder.slice(4, 8).map(bg => {
+                              const quantity = stockMap[bg] !== undefined ? stockMap[bg] : 0;
+                              const color = quantity === 0 ? '#d32f2f' : quantity < 10 ? '#f57c00' : '#388e3c';
+                              return `<span style="display:inline-block; margin:2px 8px 2px 0; padding:4px 8px; background-color:${color}; color:white; border-radius:4px; font-weight:500;">${bg}: ${quantity}</span>`;
+                            }).join('');
+                            
+                            return `<div style="margin-bottom:4px;">${firstRow}</div><div>${secondRow}</div>`;
+                          })()
+                        : '<span style="color:#999;">Nu există date despre stoc</span>';
+
+                      myMapView.closePopup();
+                      myMapView.openPopup({
+                        title: `  ${bestCenter.name}`,
+                        location: endPoint,
+                        content: `
+                          <div style="font-family: sans-serif; padding: 8px; width: 400px; max-width: 400px;">
+                            <div style="background: linear-gradient(135deg, #4CAF50, #45a049); color:white; padding:10px 12px; border-radius:6px; margin-bottom:12px; text-align:center; font-weight:600;">
+                              ⭐ CENTRU RECOMANDAT PENTRU GRUPA ${userBloodGroup}
+                            </div>
+                            
+                            <p style="margin:0 0 8px 0;">📍 <b>Adresă:</b> ${address}</p>
+
+                            <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
+
+                            <p style="margin:0 0 6px 0;">📧 <b>Email:</b> ${
+                              email !== "—" ? `<a href="mailto:${email}" style="color: #0079c1; text-decoration: none;">${email}</a>` : email
+                            }</p>
+
+                            <p style="margin:0 0 6px 0;">📞 <b>Telefon:</b> ${
+                              phone !== "—" ? `<a href="tel:${phone}" style="color: #0079c1; text-decoration: none;">${phone}</a>` : phone
+                            }</p>
+
+                            <p style="margin:0 0 10px 0;">🕒 <b>Program:</b> ${program}</p>
+
+                            <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
+
+                            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                              <span>🚗 <b>${distanceKm} km</b></span>
+                              <span>⏱️ <b>${timeMin} min</b></span>
+                            </div>
+
+                            <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
+
+                            <div style="margin-top:10px;">
+                              <p style="margin:0 0 8px 0; font-weight:600;">🩸 Stocuri de sânge disponibile:</p>
+                              <div style="margin-top:8px;">
+                                ${bloodStockHTML}
+                              </div>
+                            </div>
+                          </div>
+                        `,
+                        maxInlineSize: 520,
+                        maxBlockSize: 600
+                      });
+                    }
+                  } catch (routeError) {
+                    console.error("❌ Routing error:", routeError);
+                    alert("Eroare la calculul rutei către centrul recomandat.");
+                  }
                 }
               } catch (error) {
                 console.error("❌ Recommendation error:", error);

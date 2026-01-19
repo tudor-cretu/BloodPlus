@@ -559,19 +559,19 @@ const MapComponent = ({ currentUser }) => {
                 type: "heatmap",
                 colorStops: [
                   { ratio: 0.0, color: "rgba(0, 0, 0, 0)" },        // Transparent
-                  { ratio: 0.2, color: "rgba(76, 175, 80, 0.6)" },  // VERDE (puține puncte)
-                  { ratio: 0.4, color: "rgba(255, 235, 59, 0.7)" }, // GALBEN
-                  { ratio: 0.6, color: "rgba(255, 152, 0, 0.8)" },  // PORTOCALIU
-                  { ratio: 0.85, color: "rgba(255, 87, 34, 0.9)" }, // ROȘU-PORTOCALIU
-                  { ratio: 1.0, color: "rgba(211, 47, 47, 1.0)" }   // ROȘU (multe puncte)
+                  { ratio: 0.2, color: "rgba(46, 125, 50, 0.9)" },  // VERDE ÎNCHIS (puține puncte)
+                  { ratio: 0.4, color: "rgba(255, 235, 59, 0.9)" }, // GALBEN
+                  { ratio: 0.6, color: "rgba(255, 152, 0, 0.85)" }, // PORTOCALIU
+                  { ratio: 0.85, color: "rgba(255, 87, 34, 0.85)" },// ROȘU-PORTOCALIU
+                  { ratio: 1.0, color: "rgba(211, 47, 47, 0.8)" }   // ROȘU (multe puncte)
                 ],
                 // With a larger radius, intensities spread out; increasing maxPixelIntensity helps keep red hotspots.
                 // referenceScale helps keep a consistent look across zoom levels.
-                maxPixelIntensity: 100,
+                maxPixelIntensity: 120,
                 minPixelIntensity: 0,
                 radius: 35,
                 blurRadius: 20,
-                referenceScale: 0 // ~1:577k (Bucharest metro-ish scale)
+                referenceScale: 288895
               },
               opacity: 0.85,
               visible: true, // Initially hidden, will show only for logged users
@@ -677,7 +677,7 @@ const MapComponent = ({ currentUser }) => {
     if (quantity <= 5)   return 60;
     if (quantity <= 10)  return 40;
     if (quantity <= 20)  return 20;
-    return 5;  // MINIM → puține puncte → verde
+    return 50;  // MINIM → puține puncte → verde
   };
 
   // 5. EXEMPLU COMPLET - updateHeatmap:
@@ -733,8 +733,8 @@ const MapComponent = ({ currentUser }) => {
 
       for (let i = 0; i < multiplier; i++) {
         // Jitter mai mic pentru concentrare mai bună
-        const offsetLat = (Math.random() - 0.5) * 0.002;  // ~200m
-        const offsetLon = (Math.random() - 0.5) * 0.003;
+        const offsetLat = (Math.random() - 0.5) * 0.025;  // ~200m
+        const offsetLon = (Math.random() - 0.5) * 0.035;
 
         const jitterGeo = new Point({
           latitude: lat + offsetLat,

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { auth, db } from "./firebase/firebaseConfig";
 import { doc, getDoc, deleteDoc } from "firebase/firestore";
-import { updatePassword, deleteUser } from "firebase/auth";
+// Aceasta este singura linie de care ai nevoie pentru Firebase Auth:
+import { updatePassword, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 
 function UserPage() {
@@ -12,162 +13,125 @@ function UserPage() {
 
   useEffect(() => {
     const fetchUser = async () => {
-      const user = auth.currentUser;
-
-      if (!user) return;
-
-      const snap = await getDoc(doc(db, "users", user.uid));
-      if (snap.exists()) {
-        setUserData(snap.data());
-      }
-      setLoading(false);
+      // Așteptăm ca Firebase să verifice starea autentificării
+      auth.onAuthStateChanged(async (user) => {
+        if (user) {
+          const snap = await getDoc(doc(db, "users", user.uid));
+          if (snap.exists()) {
+            setUserData(snap.data());
+          }
+          setLoading(false);
+        } else {
+          navigate("/"); // Dacă nu e logat, trimite-l la login
+        }
+      });
     };
 
     fetchUser();
-  }, []);
+  }, [navigate]);
 
-  const changePassword = async () => {
-    try {
-      if (!newPassword) return alert("Introdu o parolă nouă!");
-
-      const user = auth.currentUser;
-      await updatePassword(user, newPassword);
-
-      alert("Parola a fost schimbată!");
-      setNewPassword("");
-    } catch (err) {
-      if (err.code === "auth/requires-recent-login") {
-        alert("Trebuie să te reconectezi pentru a schimba parola.");
-      } else {
-        alert(err.message);
-      }
-    }
-  };
-
-  // 🔥 Delete account
   const handleDeleteAccount = async () => {
-    const confirmDelete = window.confirm(
-      "Ești sigur că vrei să ștergi contul? Această acțiune este permanentă."
-    );
+  const currentPassword = window.prompt("Pentru siguranță, introdu parola actuală pentru a șterge contul:");
+  
+  if (!currentPassword) return; // Utilizatorul a anulat
 
-    if (!confirmDelete) return;
+  try {
+    const user = auth.currentUser;
+    if (user) {
+      // 1. Creăm o "cheie" (credential) cu email-ul și parola introdusă
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
 
-    try {
-      const user = auth.currentUser;
+      // 2. Reautentificăm utilizatorul pentru a "debloca" acțiunile sensibile
+      await reauthenticateWithCredential(user, credential);
 
-      // 1. șterge contul din Firestore
-      await deleteDoc(doc(db, "users", user.uid));
+      const userId = user.uid;
 
-      // 2. șterge contul din Firebase Auth
+      // 3. Ștergem datele din Firestore
+      await deleteDoc(doc(db, "users", userId));
+
+      // 4. Ștergem contul de autentificare
       await deleteUser(user);
 
-      alert("Contul tău a fost șters cu succes.");
-
-      navigate("/"); // redirect la homepage / login
-    } catch (err) {
-      if (err.code === "auth/requires-recent-login") {
-        alert("Trebuie să te reconectezi pentru a șterge contul.");
-      } else {
-        alert("Eroare: " + err.message);
-      }
+      alert("Contul tău a fost șters definitiv.");
+      navigate("/");
     }
-  };
+  } catch (err) {
+    if (err.code === "auth/wrong-password") {
+      alert("Parola introdusă este incorectă.");
+    } else {
+      alert("Eroare la ștergere: " + err.message);
+    }
+  }
+};
 
-  if (loading) return <div style={{ padding: 20 }}>Se încarcă...</div>;
+  if (loading) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
+        Se încarcă...
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: 20 }}>
-      <button
-        onClick={() => navigate("/")}
-        style={{
-          marginBottom: 20,
-          padding: "8px 16px",
-          background: "#ffffff",
-          border: "1px solid #ddd",
-          borderRadius: 8,
-          cursor: "pointer",
-        }}
-      >
-        ⟵ Înapoi la hartă
-      </button>
-
-      <h1 style={{ marginBottom: 20 }}>Profilul meu</h1>
-
-      <div
-        style={{
-          background: "white",
-          padding: 20,
-          borderRadius: 12,
-          border: "1px solid #eee",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-          maxWidth: 400,
-          marginBottom: 30,
-        }}
-      >
-        <p><strong>Nume:</strong> {userData.name}</p>
-        <p><strong>Email:</strong> {userData.email}</p>
-        <p><strong>Grupa sanguină:</strong> {userData.blood_group}</p>
-      </div>
-
-      <div
-        style={{
-          background: "white",
-          padding: 20,
-          borderRadius: 12,
-          border: "1px solid #eee",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-          maxWidth: 400,
-          marginBottom: 30,
-        }}
-      >
-        <h3>Schimbă parola</h3>
-
-        <input
-          type="password"
-          placeholder="Parolă nouă"
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-          style={{
-            padding: 10,
-            width: "100%",
-            borderRadius: 6,
-            border: "1px solid #ccc",
-            marginBottom: 10,
-          }}
-        />
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center", // Centrare orizontală
+      justifyContent: "center", // Centrare verticală (opțional)
+      minHeight: "100vh",
+      padding: "20px",
+      backgroundColor: "#f9f9f9",
+      boxSizing: "border-box"
+    }}>
+      <div style={{ width: "100%", maxWidth: "400px" }}>
         <button
-          onClick={changePassword}
+          onClick={() => navigate("/")}
           style={{
-            padding: "10px 20px",
-            background: "#4CAF50",
+            marginBottom: 20,
+            padding: "8px 16px",
+            background: "#ffffff",
+            border: "1px solid #ddd",
+            borderRadius: 8,
+            cursor: "pointer",
+            width: "fit-content"
+          }}
+        >
+          ⟵ Înapoi la hartă
+        </button>
+
+        <h1 style={{ marginBottom: 20, textAlign: "center" }}>Profilul meu</h1>
+
+        {/* Informații Utilizator */}
+        <div style={{
+          background: "white",
+          padding: 20,
+          borderRadius: 12,
+          border: "1px solid #eee",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+          marginBottom: 20,
+        }}>
+          <p><strong>Nume:</strong> {userData?.name}</p>
+          <p><strong>Email:</strong> {userData?.email}</p>
+          <p><strong>Grupa sanguină:</strong> {userData?.blood_group}</p>
+        </div>
+
+        {/* Șterge Contul */}
+        <button
+          onClick={handleDeleteAccount}
+          style={{
+            padding: "12px 20px",
+            background: "#ff4d4d",
             color: "white",
             border: "none",
-            borderRadius: 6,
+            borderRadius: 8,
             cursor: "pointer",
-            fontWeight: 600,
+            fontWeight: 700,
             width: "100%",
           }}
         >
-          Salvează parola
+          🗑️ Șterge contul permanent
         </button>
       </div>
-
-      <button
-        onClick={handleDeleteAccount}
-        style={{
-          padding: "12px 20px",
-          background: "#ff4d4d",
-          color: "white",
-          border: "none",
-          borderRadius: 8,
-          cursor: "pointer",
-          fontWeight: 700,
-          width: "100%",
-          maxWidth: 400,
-        }}
-      >
-        🗑️ Șterge contul
-      </button>
     </div>
   );
 }

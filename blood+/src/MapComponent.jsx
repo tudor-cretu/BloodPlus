@@ -524,8 +524,6 @@ const MapComponent = ({ currentUser }) => {
 
           map.add(centersLayer);
           centersLayerRef.current = centersLayer; // Store reference for filtering
-<<<<<<< Updated upstream
-=======
           
           // Create initial heatmap layer (will be updated when currentUser changes)
           try {
@@ -588,7 +586,6 @@ const MapComponent = ({ currentUser }) => {
             console.error("⚠️ Error creating heatmap:", err);
           }
 
->>>>>>> Stashed changes
           console.log(`✅ FeatureLayer with ${features.length} centers added to map.`);
         } catch (error) {
           console.error("Eroare Firebase:", error);
@@ -666,8 +663,6 @@ const MapComponent = ({ currentUser }) => {
     }
   }, [maxDistance, searchLocation, selectedBloodGroup, stockThreshold]);
 
-<<<<<<< Updated upstream
-=======
   const getHeatValueForUser = (center, userBloodGroup) => {
     if (!userBloodGroup) return 0;
 
@@ -790,7 +785,6 @@ const MapComponent = ({ currentUser }) => {
 
   }, [currentUser, isMapLoaded, heatmapReady]);
 
->>>>>>> Stashed changes
   return (
     <div style={{ position: "relative", height: "100vh", width: "100%" }}>
       <div ref={mapDiv} style={{ height: "100%", width: "100%" }}></div>

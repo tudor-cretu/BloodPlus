@@ -69,13 +69,13 @@ const MapComponent = ({ currentUser }) => {
     }
   };
 
-  // Function to get critical level text and emoji
+  // Function to get critical level text
   const getCriticalLevelInfo = (level) => {
     switch (level) {
-      case 'critical': return { text: 'CRITIC', emoji: '🚨', color: '#d32f2f' };
-      case 'warning': return { text: 'ATENȚIE', emoji: '⚠️', color: '#f57c00' };
-      case 'normal': return { text: 'NORMAL', emoji: '✅', color: '#388e3c' };
-      default: return { text: 'NECUNOSCUT', emoji: '❓', color: '#999' };
+      case 'critical': return { text: 'CRITIC', color: '#d32f2f' };
+      case 'warning': return { text: 'ATENȚIE', color: '#f57c00' };
+      case 'normal': return { text: 'NORMAL', color: '#388e3c' };
+      default: return { text: 'NECUNOSCUT', color: '#999' };
     }
   };
 
@@ -89,14 +89,14 @@ const MapComponent = ({ currentUser }) => {
 
     const initializeMap = async () => {
       if (mapDiv.current) {
-        // --- A. Setup Hartă ---
+        // Setup hartă
         const map = new Map({ basemap: "arcgis/navigation" });
 
-        // routeLayer stays as GraphicsLayer for user location + routes
+        // routeLayer pentru location utilizator și rute
         const routeLayer = new GraphicsLayer();
         map.add(routeLayer);
 
-        // --- B. Setup View (Folosim o variabilă locală unică) ---
+        // Setup View
         myMapView = new MapView({
           container: mapDiv.current,
           map: map,
@@ -107,13 +107,12 @@ const MapComponent = ({ currentUser }) => {
         // Așteptăm ca harta să fie gata complet
         await myMapView.when();
         setIsMapLoaded(true);
-        console.log("✅ Harta inițializată corect.");
 
         // Store references for the button to access
         mapDiv.current.__mapView = myMapView;
         mapDiv.current.__routeLayer = routeLayer;
 
-        // --- C. Widget Căutare ---
+        // Widget Căutare
         const searchWidget = new Search({
           view: myMapView,
           popupEnabled: false,
@@ -123,7 +122,6 @@ const MapComponent = ({ currentUser }) => {
 
         // Clear route when search is cleared (X button)
         searchWidget.on("search-clear", () => {
-          console.log("🧹 Search cleared, removing route");
           routeLayer.removeAll();
           myMapView.closePopup();
           setSearchLocation(null); // Hide the button
@@ -133,15 +131,11 @@ const MapComponent = ({ currentUser }) => {
         myMapView.on("click", (event) => {
           // Always clear route when clicking anywhere on the map
           // (clicking a center will show its popup via the layer's popupTemplate)
-          console.log("🧹 Map clicked, removing route");
           routeLayer.removeAll();
         });
 
-        // --- D. Logica de Rutare (Definită AICI pentru a vedea 'myMapView') ---
-
+        // Logica de Rutare
         const performRouting = async (startPoint, centerData) => {
-          console.log("🚗 Încep calculul rutei către:", centerData.name);
-
           const routeUrl =
             "https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
 
@@ -225,31 +219,31 @@ const MapComponent = ({ currentUser }) => {
                   location: endPointForPopup,
                   content: `
                     <div style="font-family: sans-serif; padding: 8px; width: 480px; max-width: 480px;">
-                      <p style="margin:0 0 8px 0;">📍 <b>Adresă:</b> ${address}</p>
+                      <p style="margin:0 0 8px 0;"><b>Adresă:</b> ${address}</p>
 
                       <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
 
-                      <p style="margin:0 0 6px 0;">📧 <b>Email:</b> ${
+                      <p style="margin:0 0 6px 0;"><b>Email:</b> ${
                         email !== "—" ? `<a href="mailto:${email}" style="color: #0079c1; text-decoration: none;">${email}</a>` : email
                       }</p>
 
-                      <p style="margin:0 0 6px 0;">📞 <b>Telefon:</b> ${
+                      <p style="margin:0 0 6px 0;"><b>Telefon:</b> ${
                         phone !== "—" ? `<a href="tel:${phone}" style="color: #0079c1; text-decoration: none;">${phone}</a>` : phone
                       }</p>
 
-                      <p style="margin:0 0 10px 0;">🕒 <b>Program:</b> ${program}</p>
+                      <p style="margin:0 0 10px 0;"><b>Program:</b> ${program}</p>
 
                       <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
 
                       <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                        <span>🚗 <b>${distanceKm} km</b></span>
-                        <span>⏱️ <b>${timeMin} min</b></span>
+                        <span><b>${distanceKm} km</b></span>
+                        <span><b>${timeMin} min</b></span>
                       </div>
 
                       <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
 
                       <div style="margin-top:10px;">
-                        <p style="margin:0 0 8px 0; font-weight:600;">🩸 Stocuri de sânge disponibile:</p>
+                        <p style="margin:0 0 8px 0; font-weight:600;">Stocuri de sânge disponibile:</p>
                         <div style="margin-top:8px;">
                           ${bloodStockHTML}
                         </div>
@@ -260,14 +254,14 @@ const MapComponent = ({ currentUser }) => {
                   maxBlockSize: 500
                 });
 
-                  console.log("✅ Popup deschis cu succes!");
+                  console.log("Popup opened successfully");
                 }
               } catch (popupErr) {
-                console.error("⚠️ Eroare Popup (openPopup):", popupErr);
+                console.error("Error opening popup:", popupErr);
               }
             }
           } catch (error) {
-            console.error("❌ Eroare Generală Rutare:", error);
+            console.error("Routing error:", error);
           }
         };
 
@@ -305,16 +299,12 @@ const MapComponent = ({ currentUser }) => {
           });
 
           if (closestCenter) {
-            console.log(
-              `🏆 Cel mai apropiat: ${closestCenter.name} (${minDistance.toFixed(2)} km)`
-            );
             await performRouting(userPoint, closestCenter);
           }
         };
 
-        // --- E. Event Handler ---
+        // Event Handler
         searchWidget.on("select-result", async (event) => {
-          console.log("📍 Adresă găsită:", event.result.name);
           const location = event.result.feature.geometry;
 
           // Store location and draw pin, but don't route automatically
@@ -336,10 +326,9 @@ const MapComponent = ({ currentUser }) => {
           });
           routeLayer.add(userGraphic);
 
-          console.log("📍 Location marked. Click 'Find Nearest Center' to route.");
         });
 
-        // --- F. Firebase Load & FeatureLayer Creation ---
+        // Firebase Load & FeatureLayer Creation
         try {
           const snapshot = await getDocs(centersCollection);
           const dataList = [];
@@ -470,7 +459,7 @@ const MapComponent = ({ currentUser }) => {
                     outline: { color: [139, 0, 0, 1], width: 4 },
                     size: "22px"
                   },
-                  label: "🚨 Nivel Critic"
+                  label: "Critic"
                 },
                 {
                   value: "warning",
@@ -480,7 +469,7 @@ const MapComponent = ({ currentUser }) => {
                     outline: { color: [230, 81, 0, 1], width: 3 },
                     size: "20px"
                   },
-                  label: "⚠️ Atenție"
+                  label: "Atenție"
                 },
                 {
                   value: "normal",
@@ -490,7 +479,7 @@ const MapComponent = ({ currentUser }) => {
                     outline: { color: [27, 94, 32, 1], width: 3 },
                     size: "18px"
                   },
-                  label: "✅ Normal"
+                  label: "Normal"
                 }
               ]
             },
@@ -498,20 +487,20 @@ const MapComponent = ({ currentUser }) => {
               title: "{name}",
               content: `
                 <div style="font-family: sans-serif; padding: 8px; width: 400px; max-width: 420px;">
-                  <p style="margin:0 0 8px 0;">📍 <b>Adresă:</b> {address}</p>
+                  <p style="margin:0 0 8px 0;"><b>Adresă:</b> {address}</p>
 
                   <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
 
-                  <p style="margin:0 0 6px 0;">📧 <b>Email:</b> <a href="mailto:{contact_email}" style="color: #0079c1; text-decoration: none;">{contact_email}</a></p>
+                  <p style="margin:0 0 6px 0;"><b>Email:</b> <a href="mailto:{contact_email}" style="color: #0079c1; text-decoration: none;">{contact_email}</a></p>
 
-                  <p style="margin:0 0 6px 0;">📞 <b>Telefon:</b> <a href="tel:{contact_phone}" style="color: #0079c1; text-decoration: none;">{contact_phone}</a></p>
+                  <p style="margin:0 0 6px 0;"><b>Telefon:</b> <a href="tel:{contact_phone}" style="color: #0079c1; text-decoration: none;">{contact_phone}</a></p>
 
-                  <p style="margin:0 0 10px 0;">🕒 <b>Program:</b> {program}</p>
+                  <p style="margin:0 0 10px 0;"><b>Program:</b> {program}</p>
 
                   <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
 
                   <div style="margin-top:10px;">
-                    <p style="margin:0 0 8px 0; font-weight:600;">🩸 Stocuri de sânge disponibile:</p>
+                    <p style="margin:0 0 8px 0; font-weight:600;">Stocuri de sânge disponibile:</p>
                     <div style="margin-top:8px;">
                       {bloodStockHTML}
                     </div>
@@ -583,14 +572,12 @@ const MapComponent = ({ currentUser }) => {
             map.add(heatmapLayer);
             setHeatmapReady(true);
             heatmapLayerRef.current = heatmapLayer;
-            console.log("✅ Heatmap layer created (initially hidden)");
           } catch (err) {
-            console.error("⚠️ Error creating heatmap:", err);
+            console.error("Error creating heatmap:", err);
           }
 
-          console.log(`✅ FeatureLayer with ${features.length} centers added to map.`);
         } catch (error) {
-          console.error("Eroare Firebase:", error);
+          console.error("Firebase error:", error);
         }
       }
     };
@@ -658,10 +645,8 @@ const MapComponent = ({ currentUser }) => {
 
     if (validObjectIDs.length > 0) {
       centersLayerRef.current.definitionExpression = `ObjectID IN (${validObjectIDs.join(",")})`;
-      console.log(`🔍 Filtered to ${validObjectIDs.length} centers`);
     } else {
       centersLayerRef.current.definitionExpression = "1=0"; // show nothing
-      console.log(`🔍 No centers match the filters`);
     }
   }, [maxDistance, searchLocation, selectedBloodGroup, stockThreshold]);
 
@@ -680,10 +665,10 @@ const MapComponent = ({ currentUser }) => {
     return 5;  // MINIM → puține puncte → verde
   };
 
-  // 5. EXEMPLU COMPLET - updateHeatmap:
+  // Funcție pentru calculul heatmap
   const updateHeatmap = () => {
     if (!heatmapLayerRef.current || centersDataRef.current.length === 0) {
-      console.warn("[HEATMAP] Nu pot actualiza");
+      console.warn("Cannot update heatmap - missing data");
       return;
     }
 
@@ -723,7 +708,7 @@ const MapComponent = ({ currentUser }) => {
 
       const heatValue = getHeatValueForUser(center, userBloodGroup);
 
-      // Multiplier: valori MARI (stoc mic) = MULTE puncte
+      // Multiplier: stoc mic = multe puncte pentru heatmap
       const multiplier = 
         heatValue >= 80 ? 100 :
         heatValue >= 60 ? 70 :
@@ -732,7 +717,7 @@ const MapComponent = ({ currentUser }) => {
         5;
 
       for (let i = 0; i < multiplier; i++) {
-        // Jitter mai mic pentru concentrare mai bună
+        // Offset mic pentru concentrare localizată
         const offsetLat = (Math.random() - 0.5) * 0.002;  // ~200m
         const offsetLon = (Math.random() - 0.5) * 0.003;
 
@@ -748,41 +733,29 @@ const MapComponent = ({ currentUser }) => {
           geometry: jitterWebMercator,
           attributes: {
             ObjectID: Date.now() + idx * 1000 + i,
-            heatValue: heatValue  // Nu mai e folosit de renderer, dar îl păstrăm
+            heatValue: heatValue
           }
         }));
       }
     });
-
-    console.log(`[HEATMAP] Puncte generate: ${updatedFeatures.length}`);
 
     heatmapLayer.source.removeAll();
 
     if (updatedFeatures.length > 0) {
       heatmapLayer.source.addMany(updatedFeatures);
       heatmapLayer.visible = true;
-      console.log("[HEATMAP] ACTIVAT");
     }
   };
 
-  // Șterge tot useEffect-ul vechi de la linia ~790 și pune DOAR:
+  // Effect pentru actualizare heatmap
   useEffect(() => {
-    console.log("=== HEATMAP DEBUG ===");
-    console.log("isMapLoaded:", isMapLoaded);
-    console.log("currentUser:", currentUser);
-    console.log("currentUser?.blood_group:", currentUser?.blood_group);
-    console.log("currentUser?.role:", currentUser?.role);
-    console.log("heatmapLayerRef.current:", heatmapLayerRef.current);
-    console.log("centersDataRef.current.length:", centersDataRef.current.length);
-    console.log("====================");
-    // Wait for ALL resources to be ready
+    // Așteaptă resursele necesare
     if (
       isMapLoaded &&
       heatmapLayerRef.current &&
       centersDataRef.current.length > 0 &&
       currentUser?.blood_group
     ) {
-      console.log("🔥 Updating heatmap");
       updateHeatmap();
     }
 
@@ -829,8 +802,6 @@ const MapComponent = ({ currentUser }) => {
               });
 
               if (closestCenter) {
-                console.log(`🏆 Routing to: ${closestCenter.name} (${minDistance.toFixed(2)} km)`);
-                
                 // Perform routing
                 const routeUrl = "https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
                 const endPoint = new Point({
@@ -881,19 +852,19 @@ const MapComponent = ({ currentUser }) => {
                         location: endPoint,
                         content: `
                           <div style="font-family: sans-serif; padding: 8px;">
-                            <p style="margin:0 0 8px 0;">📍 <b>Adresă:</b> ${address}</p>
+                            <p style="margin:0 0 8px 0;"><b>Adresă:</b> ${address}</p>
                             <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
-                            <p style="margin:0 0 6px 0;">📧 <b>Email:</b> ${
+                            <p style="margin:0 0 6px 0;"><b>Email:</b> ${
                               email !== "—" ? `<a href="mailto:${email}" style="color: #0079c1; text-decoration: none;">${email}</a>` : email
                             }</p>
-                            <p style="margin:0 0 6px 0;">📞 <b>Telefon:</b> ${
+                            <p style="margin:0 0 6px 0;"><b>Telefon:</b> ${
                               phone !== "—" ? `<a href="tel:${phone}" style="color: #0079c1; text-decoration: none;">${phone}</a>` : phone
                             }</p>
-                            <p style="margin:0 0 10px 0;">🕒 <b>Program:</b> ${program}</p>
+                            <p style="margin:0 0 10px 0;"><b>Program:</b> ${program}</p>
                             <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
                             <div style="display:flex; justify-content:space-between;">
-                              <span>🚗 <b>${distanceKm} km</b></span>
-                              <span>⏱️ <b>${timeMin} min</b></span>
+                              <span><b>${distanceKm} km</b></span>
+                              <span><b>${timeMin} min</b></span>
                             </div>
                           </div>
                         `
@@ -901,7 +872,7 @@ const MapComponent = ({ currentUser }) => {
                     }
                   }
                 } catch (error) {
-                  console.error("❌ Routing error:", error);
+                  console.error("Routing error:", error);
                 }
               }
             }
@@ -927,7 +898,6 @@ const MapComponent = ({ currentUser }) => {
             gap: "2px"
           }}
         >
-          <span>🩸</span>
           Gaseste cel mai apropiat centru
         </button>
       )}
@@ -994,7 +964,7 @@ const MapComponent = ({ currentUser }) => {
                   const stockItem = bloodStock.find(s => s.blood_group === userBloodGroup);
                   const quantity = stockItem ? stockItem.quantity : 0;
 
-                  console.log(`🎯 Recommended center: ${bestCenter.name} (Stock ${userBloodGroup}: ${quantity} units)`);
+                  console.log(`Recommended center: ${bestCenter.name} (Stock ${userBloodGroup}: ${quantity} units)`);
 
                   // Perform routing to recommended center
                   const routeUrl = "https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
@@ -1081,34 +1051,34 @@ const MapComponent = ({ currentUser }) => {
                         content: `
                           <div style="font-family: sans-serif; padding: 8px; width: 400px; max-width: 400px;">
                             <div style="background: linear-gradient(135deg, #4CAF50, #45a049); color:white; padding:10px 12px; border-radius:6px; margin-bottom:12px; text-align:center; font-weight:600;">
-                              ⭐ CENTRU RECOMANDAT PENTRU GRUPA ${userBloodGroup}
+                              CENTRU RECOMANDAT PENTRU GRUPA ${userBloodGroup}
                             </div>
                             
-                            <p style="margin:0 0 8px 0;">📍 <b>Adresă:</b> ${address}</p>
+                            <p style="margin:0 0 8px 0;"><b>Adresă:</b> ${address}</p>
 
                             <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
 
-                            <p style="margin:0 0 6px 0;">📧 <b>Email:</b> ${
+                            <p style="margin:0 0 6px 0;"><b>Email:</b> ${
                               email !== "—" ? `<a href="mailto:${email}" style="color: #0079c1; text-decoration: none;">${email}</a>` : email
                             }</p>
 
-                            <p style="margin:0 0 6px 0;">📞 <b>Telefon:</b> ${
+                            <p style="margin:0 0 6px 0;"><b>Telefon:</b> ${
                               phone !== "—" ? `<a href="tel:${phone}" style="color: #0079c1; text-decoration: none;">${phone}</a>` : phone
                             }</p>
 
-                            <p style="margin:0 0 10px 0;">🕒 <b>Program:</b> ${program}</p>
+                            <p style="margin:0 0 10px 0;"><b>Program:</b> ${program}</p>
 
                             <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
 
                             <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                              <span>🚗 <b>${distanceKm} km</b></span>
-                              <span>⏱️ <b>${timeMin} min</b></span>
+                              <span><b>${distanceKm} km</b></span>
+                              <span><b>${timeMin} min</b></span>
                             </div>
 
                             <hr style="border:0; border-top:1px solid #eee; margin:10px 0;" />
 
                             <div style="margin-top:10px;">
-                              <p style="margin:0 0 8px 0; font-weight:600;">🩸 Stocuri de sânge disponibile:</p>
+                              <p style="margin:0 0 8px 0; font-weight:600;">Stocuri de sânge disponibile:</p>
                               <div style="margin-top:8px;">
                                 ${bloodStockHTML}
                               </div>
@@ -1120,12 +1090,12 @@ const MapComponent = ({ currentUser }) => {
                       });
                     }
                   } catch (routeError) {
-                    console.error("❌ Routing error:", routeError);
+                    console.error("Routing error:", routeError);
                     alert("Eroare la calculul rutei către centrul recomandat.");
                   }
                 }
               } catch (error) {
-                console.error("❌ Recommendation error:", error);
+                console.error("Recommendation error:", error);
               }
             }
           }}
@@ -1151,7 +1121,6 @@ const MapComponent = ({ currentUser }) => {
             gap: "2px"
           }}
         >
-          <span>⭐</span>
           Recomandare centru pentru grupa ta ({currentUser.blood_group})
         </button>
       )}

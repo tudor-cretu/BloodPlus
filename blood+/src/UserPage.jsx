@@ -129,7 +129,7 @@ function UserPage() {
             width: "100%",
           }}
         >
-          🗑️ Șterge contul permanent
+          Șterge contul permanent
         </button>
       </div>
     </div>
